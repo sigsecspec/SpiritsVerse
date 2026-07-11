@@ -1,0 +1,8 @@
+{
+  "name": "SpiritsVerse",
+  "description": "The social network for drink lovers. Explore cocktails, beers, spirits, and wine. Connect with drinking buddies and share your digital bar.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": []
+}

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SpiritsVerse</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&family=Playfair+Display:wght@700;900&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        /* SpiritsVerse Theme */
+        --bg-main: #050505;
+        --bg-card: #121212;
+        --bg-input: #1a1a1a;
+        --bg-hover: #252525;
+        
+        --text-main: #ffffff;
+        --text-secondary: #d1d1d1;
+        --text-muted: #888888;
+        
+        --border: #2a2a2a;
+        --border-strong: #404040;
+        
+        /* Palette */
+        --whiskey-amber: #ffa726;
+        --wine-red: #d32f2f;
+        --beer-gold: #ffd700;
+        --cocktail-pink: #f06292;
+        --gin-blue: #64b5f6;
+        --mocktail-green: #81c784;
+
+        /* Primary Accent - Cocktail Vibe */
+        --accent: var(--cocktail-pink);
+        --accent-hover: #e91e63;
+        --accent-light: rgba(240, 98, 146, 0.1);
+        --neon-glow: 0 0 10px rgba(240, 98, 146, 0.5);
+
+        --font-heading: 'Playfair Display', serif;
+        
+        /* Gradients */
+        --gradient-main: linear-gradient(135deg, var(--whiskey-amber) 0%, var(--wine-red) 50%, var(--cocktail-pink) 100%);
+        
+        --shadow-color: rgba(240, 98, 146, 0.2);
+      }
+
+      @keyframes liquid-flow {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes breathing-glow {
+        0% { box-shadow: 0 0 15px rgba(240, 98, 146, 0.2); }
+        50% { box-shadow: 0 0 25px rgba(240, 98, 146, 0.4); }
+        100% { box-shadow: 0 0 15px rgba(240, 98, 146, 0.2); }
+      }
+
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: var(--bg-main);
+        background-image: radial-gradient(circle at top center, #1e0b16 0%, #050505 60%);
+        background-size: 100% 100%;
+        color: var(--text-main);
+        min-height: 100vh;
+      }
+
+      h1, h2, h3, h4, h5, h6 {
+        font-family: var(--font-heading);
+      }
+
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: var(--bg-card);
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--border-strong);
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: var(--accent);
+      }
+      
+      .neon-text-glow {
+        text-shadow: 0 0 10px rgba(240, 98, 146, 0.7);
+      }
+      
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.39.3"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

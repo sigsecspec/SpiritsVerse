@@ -1,0 +1,2 @@
+-- This script's logic has been moved into the main sql.txt file.
+-- It is no longer necessary to run this file separately.
