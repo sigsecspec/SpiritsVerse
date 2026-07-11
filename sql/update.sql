@@ -1,19 +1,16 @@
+-- SpiritsVerse schema setup for the shared Verse Supabase project.
+-- Idempotent: safe to run on the shared DB when the schema may already exist.
+-- For a full reset, use sql.txt (includes DROP SCHEMA) on a fresh database only.
 
--- SpiritsVerse Database Setup
--- Run this in your Supabase SQL Editor to reset and initialize the database.
-
--- WARNING: This will drop the existing schema and data.
-DROP SCHEMA IF EXISTS "SpiritsVerse" CASCADE;
-CREATE SCHEMA "SpiritsVerse";
+CREATE SCHEMA IF NOT EXISTS "SpiritsVerse";
 
 -- GRANT PERMISSIONS (Fix for "permission denied for schema" errors)
--- We grant these early for the script, but will also grant on all tables at the end.
 GRANT USAGE ON SCHEMA "SpiritsVerse" TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA "SpiritsVerse" GRANT ALL ON TABLES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA "SpiritsVerse" GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
 
 -- 1. PROFILES
-CREATE TABLE "SpiritsVerse".profiles (
+CREATE TABLE IF NOT EXISTS "SpiritsVerse".profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     handle TEXT NOT NULL,
@@ -38,10 +35,10 @@ CREATE TABLE "SpiritsVerse".profiles (
 );
 
 -- 2. SPIRITS (Drink Directory)
-CREATE TABLE "SpiritsVerse".spirits (
+CREATE TABLE IF NOT EXISTS "SpiritsVerse".spirits (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
-    category TEXT NOT NULL, -- Whiskey, Vodka, Cocktail, etc.
+    category TEXT NOT NULL,
     description TEXT,
     abv FLOAT,
     age INT,
@@ -55,7 +52,7 @@ CREATE TABLE "SpiritsVerse".spirits (
 );
 
 -- 3. POSTS (SipStream & PourUp)
-CREATE TABLE "SpiritsVerse".posts (
+CREATE TABLE IF NOT EXISTS "SpiritsVerse".posts (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
     content TEXT NOT NULL,
@@ -69,16 +66,15 @@ CREATE TABLE "SpiritsVerse".posts (
     venue TEXT,
     mood TEXT,
     badges JSONB DEFAULT '[]'::JSONB,
-    -- PourUp Fields
     is_toastit BOOLEAN DEFAULT FALSE,
     toast_looking_for TEXT,
     toast_expires_at TIMESTAMPTZ,
-    group_id TEXT, 
+    group_id TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 4. INTERACTIONS & REACTIONS
-CREATE TABLE "SpiritsVerse".post_reactions (
+CREATE TABLE IF NOT EXISTS "SpiritsVerse".post_reactions (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     post_id UUID REFERENCES "SpiritsVerse".posts(id) ON DELETE CASCADE NOT NULL,
     user_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
@@ -87,7 +83,7 @@ CREATE TABLE "SpiritsVerse".post_reactions (
     UNIQUE (post_id, user_id)
 );
 
-CREATE TABLE "SpiritsVerse".post_comments (
+CREATE TABLE IF NOT EXISTS "SpiritsVerse".post_comments (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     post_id UUID REFERENCES "SpiritsVerse".posts(id) ON DELETE CASCADE NOT NULL,
     user_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
@@ -96,17 +92,17 @@ CREATE TABLE "SpiritsVerse".post_comments (
 );
 
 -- 5. SOCIAL GROUPS (BarSesh)
-CREATE TABLE "SpiritsVerse".groups (
+CREATE TABLE IF NOT EXISTS "SpiritsVerse".groups (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     name TEXT NOT NULL,
     description TEXT,
-    type TEXT NOT NULL, -- FRIEND, FAMILY, PUBLIC, TOAST
+    type TEXT NOT NULL,
     members JSONB DEFAULT '[]'::JSONB,
     cover_image_url TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE "SpiritsVerse".messages (
+CREATE TABLE IF NOT EXISTS "SpiritsVerse".messages (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     group_id TEXT REFERENCES "SpiritsVerse".groups(id) ON DELETE CASCADE NOT NULL,
     user_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
@@ -115,17 +111,17 @@ CREATE TABLE "SpiritsVerse".messages (
 );
 
 -- 6. SPIRIT SOCIAL (Photos, Reviews, Logs)
-CREATE TABLE "SpiritsVerse".spirit_photos (
+CREATE TABLE IF NOT EXISTS "SpiritsVerse".spirit_photos (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     spirit_id UUID REFERENCES "SpiritsVerse".spirits(id) ON DELETE CASCADE NOT NULL,
     user_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
     image_url TEXT NOT NULL,
-    serving_style TEXT DEFAULT 'BAR', -- HOME or BAR
+    serving_style TEXT DEFAULT 'BAR',
     cocktail_name TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE "SpiritsVerse".spirit_reviews (
+CREATE TABLE IF NOT EXISTS "SpiritsVerse".spirit_reviews (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     spirit_id UUID REFERENCES "SpiritsVerse".spirits(id) ON DELETE CASCADE NOT NULL,
     user_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
@@ -136,7 +132,7 @@ CREATE TABLE "SpiritsVerse".spirit_reviews (
     UNIQUE(user_id, spirit_id, serving_style)
 );
 
-CREATE TABLE "SpiritsVerse".spirit_chat_messages (
+CREATE TABLE IF NOT EXISTS "SpiritsVerse".spirit_chat_messages (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     spirit_id UUID REFERENCES "SpiritsVerse".spirits(id) ON DELETE CASCADE NOT NULL,
     user_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
@@ -144,7 +140,7 @@ CREATE TABLE "SpiritsVerse".spirit_chat_messages (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE "SpiritsVerse".user_spirit_log (
+CREATE TABLE IF NOT EXISTS "SpiritsVerse".user_spirit_log (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
     spirit_id UUID REFERENCES "SpiritsVerse".spirits(id) ON DELETE CASCADE NOT NULL,
@@ -153,7 +149,7 @@ CREATE TABLE "SpiritsVerse".user_spirit_log (
 );
 
 -- 7. STORIES
-CREATE TABLE "SpiritsVerse".stories (
+CREATE TABLE IF NOT EXISTS "SpiritsVerse".stories (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
     image_url TEXT NOT NULL,
@@ -163,22 +159,22 @@ CREATE TABLE "SpiritsVerse".stories (
 );
 
 -- 8. RELATIONSHIPS & BLOCKS
-CREATE TABLE "SpiritsVerse".relationships (
+CREATE TABLE IF NOT EXISTS "SpiritsVerse".relationships (
     user_1_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
     user_2_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
-    type TEXT NOT NULL, -- FRIEND, FAMILY
-    status TEXT NOT NULL, -- PENDING, ACCEPTED
+    type TEXT NOT NULL,
+    status TEXT NOT NULL,
     PRIMARY KEY (user_1_id, user_2_id)
 );
 
-CREATE TABLE "SpiritsVerse".blocks (
+CREATE TABLE IF NOT EXISTS "SpiritsVerse".blocks (
     blocker_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
     blocked_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (blocker_id, blocked_id)
 );
 
-CREATE TABLE "SpiritsVerse".reports (
+CREATE TABLE IF NOT EXISTS "SpiritsVerse".reports (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     reporter_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
     reported_user_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
@@ -189,7 +185,7 @@ CREATE TABLE "SpiritsVerse".reports (
 );
 
 -- 9. POURUP INTERACTIONS
-CREATE TABLE "SpiritsVerse".toastit_interactions (
+CREATE TABLE IF NOT EXISTS "SpiritsVerse".toastit_interactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     post_id UUID REFERENCES "SpiritsVerse".posts(id) ON DELETE CASCADE NOT NULL,
     sender_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
@@ -202,7 +198,7 @@ CREATE TABLE "SpiritsVerse".toastit_interactions (
     UNIQUE (post_id, sender_id)
 );
 
-CREATE TABLE "SpiritsVerse".safety_reports (
+CREATE TABLE IF NOT EXISTS "SpiritsVerse".safety_reports (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references "SpiritsVerse".profiles(id) on delete cascade not null,
   latitude float not null,
@@ -247,36 +243,71 @@ ALTER TABLE "SpiritsVerse".stories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "SpiritsVerse".relationships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "SpiritsVerse".toastit_interactions ENABLE ROW LEVEL SECURITY;
 
--- POLICIES (Simplified for Development)
+-- POLICIES (idempotent)
+DROP POLICY IF EXISTS "Public read profiles" ON "SpiritsVerse".profiles;
 CREATE POLICY "Public read profiles" ON "SpiritsVerse".profiles FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Users update own profile" ON "SpiritsVerse".profiles;
 CREATE POLICY "Users update own profile" ON "SpiritsVerse".profiles FOR UPDATE USING (auth.uid() = id);
+DROP POLICY IF EXISTS "Users insert own profile" ON "SpiritsVerse".profiles;
 CREATE POLICY "Users insert own profile" ON "SpiritsVerse".profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Public read posts" ON "SpiritsVerse".posts;
 CREATE POLICY "Public read posts" ON "SpiritsVerse".posts FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Users create posts" ON "SpiritsVerse".posts;
 CREATE POLICY "Users create posts" ON "SpiritsVerse".posts FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Public read spirits" ON "SpiritsVerse".spirits;
 CREATE POLICY "Public read spirits" ON "SpiritsVerse".spirits FOR SELECT USING (true);
 
--- Allow all authenticated for simplicity in demo
+DROP POLICY IF EXISTS "Auth all" ON "SpiritsVerse".post_reactions;
 CREATE POLICY "Auth all" ON "SpiritsVerse".post_reactions FOR ALL USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Auth all comments" ON "SpiritsVerse".post_comments;
 CREATE POLICY "Auth all comments" ON "SpiritsVerse".post_comments FOR ALL USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Auth all groups" ON "SpiritsVerse".groups;
 CREATE POLICY "Auth all groups" ON "SpiritsVerse".groups FOR ALL USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Auth all messages" ON "SpiritsVerse".messages;
 CREATE POLICY "Auth all messages" ON "SpiritsVerse".messages FOR ALL USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Auth all photos" ON "SpiritsVerse".spirit_photos;
 CREATE POLICY "Auth all photos" ON "SpiritsVerse".spirit_photos FOR ALL USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Auth all reviews" ON "SpiritsVerse".spirit_reviews;
 CREATE POLICY "Auth all reviews" ON "SpiritsVerse".spirit_reviews FOR ALL USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Auth all spirit chat" ON "SpiritsVerse".spirit_chat_messages;
 CREATE POLICY "Auth all spirit chat" ON "SpiritsVerse".spirit_chat_messages FOR ALL USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Auth all logs" ON "SpiritsVerse".user_spirit_log;
 CREATE POLICY "Auth all logs" ON "SpiritsVerse".user_spirit_log FOR ALL USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Auth all stories" ON "SpiritsVerse".stories;
 CREATE POLICY "Auth all stories" ON "SpiritsVerse".stories FOR ALL USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Auth all interactions" ON "SpiritsVerse".toastit_interactions;
 CREATE POLICY "Auth all interactions" ON "SpiritsVerse".toastit_interactions FOR ALL USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Auth all relationships" ON "SpiritsVerse".relationships;
 CREATE POLICY "Auth all relationships" ON "SpiritsVerse".relationships FOR ALL USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Auth all blocks" ON "SpiritsVerse".blocks;
 CREATE POLICY "Auth all blocks" ON "SpiritsVerse".blocks FOR ALL USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Auth all reports" ON "SpiritsVerse".reports;
 CREATE POLICY "Auth all reports" ON "SpiritsVerse".reports FOR ALL USING (auth.role() = 'authenticated');
 
--- REALTIME
-ALTER PUBLICATION supabase_realtime ADD TABLE "SpiritsVerse".spirits;
-ALTER PUBLICATION supabase_realtime ADD TABLE "SpiritsVerse".posts;
-ALTER PUBLICATION supabase_realtime ADD TABLE "SpiritsVerse".messages;
-
+-- REALTIME (skip if already published)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'SpiritsVerse' AND tablename = 'spirits'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE "SpiritsVerse".spirits;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'SpiritsVerse' AND tablename = 'posts'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE "SpiritsVerse".posts;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'SpiritsVerse' AND tablename = 'messages'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE "SpiritsVerse".messages;
+  END IF;
+END $$;
 
 -- 10. AUTOMATION & TRIGGERS (Pull Profiles from Auth)
 CREATE OR REPLACE FUNCTION "SpiritsVerse".handle_new_user()
@@ -286,11 +317,9 @@ DECLARE
   new_handle TEXT;
   counter INT := 0;
 BEGIN
-  -- Determine base handle
   base_handle := COALESCE(NEW.raw_user_meta_data->>'handle', 'user_' || substring(NEW.id::text from 1 for 8));
   new_handle := base_handle;
-  
-  -- Simple collision resolution for handle uniqueness
+
   WHILE EXISTS (SELECT 1 FROM "SpiritsVerse".profiles WHERE handle = new_handle AND id <> NEW.id) LOOP
     counter := counter + 1;
     new_handle := base_handle || '_' || counter;
@@ -312,7 +341,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Trigger to call the function (app-specific name for shared auth.users)
+-- App-specific trigger name (shared auth.users across Verse apps)
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 DROP TRIGGER IF EXISTS on_auth_user_created_spiritsverse ON auth.users;
 CREATE TRIGGER on_auth_user_created_spiritsverse
@@ -332,7 +361,7 @@ FROM auth.users
 WHERE id NOT IN (SELECT id FROM "SpiritsVerse".profiles)
 ON CONFLICT (id) DO NOTHING;
 
--- 11. FINAL PERMISSIONS (Ensure everything is accessible)
+-- 11. FINAL PERMISSIONS
 GRANT USAGE ON SCHEMA "SpiritsVerse" TO anon, authenticated, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA "SpiritsVerse" TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA "SpiritsVerse" TO anon, authenticated, service_role;
