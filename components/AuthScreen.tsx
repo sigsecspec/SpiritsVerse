@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { auth } from '../services/supabaseClient';
-import { formatAuthError } from '../utils/verseAuth';
+import {
+  formatAuthError,
+  VERSE_ACCOUNT_COPY,
+} from '../utils/verseAuth';
 import { Loader2, Wine } from 'lucide-react';
 
 interface AuthScreenProps {
@@ -16,39 +19,43 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
   const [dob, setDob] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setInfo(null);
 
     try {
       if (isLogin) {
-        const { error } = await auth.signIn(email, password);
-        if (error) throw error;
+        const { error: signInError } = await auth.signIn(email, password);
+        if (signInError) throw signInError;
       } else {
         if (!name || !handle || !dob) {
-          throw new Error("Please fill out all fields.");
+          throw new Error('Please fill out all fields.');
         }
         const birthDate = new Date(dob);
         const ageDifMs = Date.now() - birthDate.getTime();
         const ageDate = new Date(ageDifMs);
         if (Math.abs(ageDate.getUTCFullYear() - 1970) < 21) {
-            throw new Error("You must be 21+ to join SpiritsVerse.");
+          throw new Error('You must be 21+ to join SpiritsVerse.');
         }
 
-        const { error } = await auth.signUp(email, password, name, handle, dob);
-        if (error) {
-          const msg = error.message || '';
-          if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already been registered')) {
+        const result = await auth.signUp(email, password, name, handle, dob);
+        if (result.error) {
+          if ((result as { verseAutoSignIn?: boolean }).verseAutoSignIn) {
             setIsLogin(true);
           }
-          throw error;
+          throw result.error;
+        }
+        if ((result as { verseAutoSignIn?: boolean }).verseAutoSignIn) {
+          setInfo('Welcome back! Signed in with your existing Verse account and set up your SpiritsVerse profile.');
         }
       }
       onSuccess();
     } catch (err: any) {
-      setError(formatAuthError(err.message || "An error occurred"));
+      setError(formatAuthError(err.message || 'An error occurred'));
     } finally {
       setLoading(false);
     }
@@ -67,12 +74,17 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
           {isLogin ? 'Sign in with your Verse account' : 'Apply for membership'}
         </p>
         <p className="text-[var(--text-muted)]/80 text-xs mt-2 leading-relaxed">
-          One account for all Verse apps — Cookbook.io, SpiritsVerse, StrainVerse, and more.
+          {VERSE_ACCOUNT_COPY}
         </p>
       </div>
 
       <div className="p-8">
         <form onSubmit={handleSubmit} className="space-y-4">
+          {info && (
+            <div className="p-3 bg-emerald-900/20 border border-emerald-700/50 rounded-lg text-emerald-300 text-xs text-center">
+              {info}
+            </div>
+          )}
           {error && (
             <div className="p-3 bg-red-900/20 border border-red-900/50 rounded-lg text-red-300 text-xs text-center">
               {error}
@@ -99,13 +111,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
                     type="text"
                     required
                     value={handle}
-                    onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/\s/g, ''))}
-                    placeholder="@johnnywalker"
+                    onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                    placeholder="johnnywalker"
                     className="w-full bg-[var(--bg-input)] border border-[var(--border)] rounded-lg px-4 py-2.5 text-[var(--text-main)] text-sm focus:border-[var(--accent)] outline-none transition-colors placeholder-[var(--text-muted)]/30"
                   />
                 </div>
               </div>
-               <div>
+              <div>
                 <label className="block text-[var(--text-muted)] text-xs font-bold uppercase tracking-wider mb-1">Date of Birth (21+)</label>
                 <input
                   type="date"
@@ -153,12 +165,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
 
         <div className="mt-6 text-center">
           <p className="text-[var(--text-muted)] text-sm">
-            {isLogin ? "Not a member?" : "Already a member?"}
+            {isLogin ? 'New here?' : 'Already have a Verse account?'}
             <button
-              onClick={() => setIsLogin(!isLogin)}
+              type="button"
+              onClick={() => { setIsLogin(!isLogin); setError(null); setInfo(null); }}
               className="ml-2 text-[var(--accent)] hover:text-white/80 hover:underline font-medium transition-colors"
             >
-              {isLogin ? "Apply" : "Log In"}
+              {isLogin ? 'Apply' : 'Log In'}
             </button>
           </p>
         </div>

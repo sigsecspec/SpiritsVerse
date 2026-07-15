@@ -2,7 +2,19 @@
 import { createClient } from '@supabase/supabase-js';
 import { User, Post, Group, ChatMessage, PostVisibility, ReactionType, SafetyReport, Story, Drink, DrinkPhoto, DrinkReview, DrinkChatMessage, PostComment, ReportCategory, PourUpInteraction } from '../types';
 import { moderatePostContent } from './geminiService';
-import { extractVerseUserMeta } from '../utils/verseAuth';
+import {
+  isExistingUserError,
+  sanitizeHandle,
+  SPIRITSVERSE_SCHEMA,
+} from '../utils/verseAuth';
+import {
+  ensureSpiritsVerseProfile,
+  ensureSpiritsVerseProfileForSession,
+  mapProfileRowToUser,
+  spiritsVerse,
+} from './spiritsVerseProfile';
+
+export { SPIRITSVERSE_SCHEMA, spiritsVerse, ensureSpiritsVerseProfile, ensureSpiritsVerseProfileForSession };
 
 const SUPABASE_URL =
   import.meta.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -40,41 +52,58 @@ function createSupabaseClient() {
 
 export const supabase = createSupabaseClient();
 
+const profileProvisionError = {
+  name: 'ProfileProvisionError',
+  message: 'Signed in but could not set up your SpiritsVerse profile. Please try again.',
+};
+
 export const auth = {
     signIn: async (email: string, password: string) => {
         const result = await supabase.auth.signInWithPassword({ email, password });
-        if (!result.error && result.data.session) {
-            const profile = await api.ensureProfile();
+        if (!result.error && result.data.session?.user) {
+            const profile = await ensureSpiritsVerseProfile(supabase, result.data.session.user);
             if (!profile) {
-                return {
-                    ...result,
-                    error: {
-                        name: 'ProfileProvisionError',
-                        message: 'Signed in but could not set up your SpiritsVerse profile. Please try again.',
-                    },
-                };
+                return { ...result, error: profileProvisionError };
             }
         }
         return result;
     },
     signUp: async (email: string, password: string, name: string, handle: string, dob: string) => {
-        const { data, error } = await supabase.auth.signUp({ 
-            email, 
+        const metadata = {
+            name,
+            handle: sanitizeHandle(handle),
+            date_of_birth: dob,
+            site: 'SpiritsVerse',
+        };
+
+        const { data, error } = await supabase.auth.signUp({
+            email,
             password,
-            options: {
-                data: {
-                    name,
-                    handle,
-                    date_of_birth: dob,
-                    site: 'SpiritsVerse',
+            options: { data: metadata },
+        });
+
+        if (error && isExistingUserError(error.message)) {
+            const signIn = await supabase.auth.signInWithPassword({ email, password });
+            if (signIn.error) {
+                return {
+                    data: signIn.data,
+                    error: signIn.error,
+                    verseAutoSignIn: true,
+                };
+            }
+            if (signIn.data.session?.user) {
+                const profile = await ensureSpiritsVerseProfile(supabase, signIn.data.session.user);
+                if (!profile) {
+                    return { data: signIn.data, error: profileProvisionError, verseAutoSignIn: true };
                 }
             }
-        });
-        
+            return { data: signIn.data, error: null, verseAutoSignIn: true };
+        }
+
         if (error) return { data, error };
 
         if (data.user && data.session) {
-            await api.createProfile(data.user.id, name, handle, dob);
+            await ensureSpiritsVerseProfile(supabase, data.user);
         }
 
         return { data, error };
@@ -101,103 +130,29 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 export const api = {
   
   createProfile: async (userId: string, name: string, handle: string, dob?: string) => {
-    let currentHandle = handle;
-    const payload: any = {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user || session.user.id !== userId) {
+      const payload = {
         id: userId,
         name: name || 'User',
-        handle: currentHandle,
+        handle: sanitizeHandle(handle),
         avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`,
-        bio: 'Just another drink enthusiast.'
-    };
-    if (dob) {
-      payload.date_of_birth = dob;
+        bio: 'Just another drink enthusiast.',
+        ...(dob ? { date_of_birth: dob } : {}),
+      };
+      const { error } = await spiritsVerse(supabase).from('profiles').upsert([payload], { onConflict: 'id' });
+      return !error;
     }
-    
-    try {
-        let { error } = await supabase.from('profiles').upsert([payload], { onConflict: 'id' });
-        
-        if (error && (error.code === '23505' || error.message?.includes('unique') || error.message?.includes('handle'))) {
-            console.warn("Handle taken, trying alternate...");
-            currentHandle = `${handle}_${userId.substring(0, 4)}`;
-            payload.handle = currentHandle;
-            const retry = await supabase.from('profiles').upsert([payload], { onConflict: 'id' });
-            error = retry.error;
-        }
-
-        if (error) {
-            console.error("Error creating profile:", error.message || JSON.stringify(error));
-            return false;
-        }
-        return true;
-    } catch (e) {
-        console.error("Exception creating profile:", e);
-        return false;
-    }
+    const profile = await ensureSpiritsVerseProfile(supabase, session.user);
+    return profile !== null;
   },
 
-  /** Ensure a SpiritsVerse profile exists for the current shared Verse auth session. */
-  ensureProfile: async (): Promise<User | null> => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return null;
+  /** @deprecated Use ensureSpiritsVerseProfileForSession */
+  ensureProfile: async (): Promise<User | null> => ensureSpiritsVerseProfileForSession(supabase),
 
-    const { data: existing, error: fetchError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', session.user.id)
-      .maybeSingle();
+  getCurrentUser: async (): Promise<User | null> => ensureSpiritsVerseProfileForSession(supabase),
 
-    if (fetchError) {
-      console.warn('Profile fetch error:', fetchError.message, fetchError.code);
-    }
-
-    if (existing) {
-      return api.mapProfileToUser(existing);
-    }
-
-    const { data: rpcRows, error: rpcError } = await supabase.rpc('ensure_my_profile');
-    if (!rpcError && rpcRows?.length) {
-      return api.mapProfileToUser(rpcRows[0]);
-    }
-    if (rpcError) {
-      console.warn('ensure_my_profile RPC failed:', rpcError.message, rpcError.code);
-    }
-
-    const meta = extractVerseUserMeta(session.user);
-    const created = await api.createProfile(session.user.id, meta.name, meta.handle, meta.dob);
-    if (!created) return null;
-
-    const { data: retryData } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', session.user.id)
-      .maybeSingle();
-
-    return retryData ? api.mapProfileToUser(retryData) : null;
-  },
-
-  getCurrentUser: async (): Promise<User | null> => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return null;
-    return api.ensureProfile();
-  },
-
-  // Helper to keep user mapping consistent
-  mapProfileToUser: (data: any): User => {
-    const mockBadges = [
-        { id: '1', name: 'First Sip', description: 'You created your account!', icon: '🍹' },
-    ];
-    return { 
-        ...data, 
-        distanceRadius: data.distance_radius || 25, 
-        city: data.city,
-        state: data.state,
-        badges: data.badges && data.badges.length > 0 ? data.badges : mockBadges,
-        dateOfBirth: data.date_of_birth,
-        status: data.status,
-        role: data.role,
-        widgets: data.widgets || []
-    } as User;
-  },
+  mapProfileToUser: mapProfileRowToUser,
 
   updateProfile: async (userId: string, updates: Partial<User>) => {
     const { name, bio, city, state, favDrinks, drinkingStyle, dateOfBirth } = updates;
