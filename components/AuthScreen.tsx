@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { auth } from '../services/supabaseClient';
-import { Loader2, Wine, GlassWater } from 'lucide-react';
+import { formatAuthError } from '../utils/verseAuth';
+import { Loader2, Wine } from 'lucide-react';
 
 interface AuthScreenProps {
   onSuccess: () => void;
@@ -29,7 +30,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
         if (!name || !handle || !dob) {
           throw new Error("Please fill out all fields.");
         }
-        // Basic frontend age check
         const birthDate = new Date(dob);
         const ageDifMs = Date.now() - birthDate.getTime();
         const ageDate = new Date(ageDifMs);
@@ -38,11 +38,17 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
         }
 
         const { error } = await auth.signUp(email, password, name, handle, dob);
-        if (error) throw error;
+        if (error) {
+          const msg = error.message || '';
+          if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already been registered')) {
+            setIsLogin(true);
+          }
+          throw error;
+        }
       }
       onSuccess();
     } catch (err: any) {
-      setError(err.message || "An error occurred");
+      setError(formatAuthError(err.message || "An error occurred"));
     } finally {
       setLoading(false);
     }
@@ -57,7 +63,12 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
         <h1 className="text-2xl font-black text-[var(--text-main)] mb-1 tracking-tight font-serif">
           Enter the Lounge
         </h1>
-        <p className="text-[var(--text-muted)] text-sm font-medium">{isLogin ? 'Sign in to your account' : 'Apply for membership'}</p>
+        <p className="text-[var(--text-muted)] text-sm font-medium">
+          {isLogin ? 'Sign in with your Verse account' : 'Apply for membership'}
+        </p>
+        <p className="text-[var(--text-muted)]/80 text-xs mt-2 leading-relaxed">
+          One account for all Verse apps — Cookbook.io, SpiritsVerse, StrainVerse, and more.
+        </p>
       </div>
 
       <div className="p-8">

@@ -309,7 +309,52 @@ BEGIN
   END IF;
 END $$;
 
--- 10. AUTOMATION & TRIGGERS (Pull Profiles from Auth)
+-- 10. AUTOMATION & TRIGGERS (Pull Profiles from Auth — shared Verse auth.users)
+CREATE OR REPLACE FUNCTION "SpiritsVerse".verse_meta_handle(meta JSONB, user_id UUID)
+RETURNS TEXT AS $$
+DECLARE
+  base_handle TEXT;
+BEGIN
+  base_handle := lower(regexp_replace(COALESCE(
+    meta->>'handle',
+    meta->>'username',
+    meta->>'user_name',
+    meta->>'preferred_username',
+    split_part((SELECT email FROM auth.users WHERE id = user_id), '@', 1),
+    'user_' || substring(user_id::text from 1 for 8)
+  ), '^@', ''));
+  base_handle := regexp_replace(base_handle, '\s+', '', 'g');
+  IF base_handle = '' THEN
+    base_handle := 'user_' || substring(user_id::text from 1 for 8);
+  END IF;
+  RETURN left(base_handle, 32);
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION "SpiritsVerse".verse_meta_name(meta JSONB, user_id UUID)
+RETURNS TEXT AS $$
+BEGIN
+  RETURN COALESCE(
+    meta->>'name',
+    meta->>'full_name',
+    meta->>'display_name',
+    split_part((SELECT email FROM auth.users WHERE id = user_id), '@', 1),
+    'User'
+  );
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+CREATE OR REPLACE FUNCTION "SpiritsVerse".verse_meta_dob(meta JSONB)
+RETURNS DATE AS $$
+BEGIN
+  RETURN COALESCE(
+    NULLIF(meta->>'date_of_birth', '')::DATE,
+    NULLIF(meta->>'dob', '')::DATE,
+    NULLIF(meta->>'birthday', '')::DATE
+  );
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
 CREATE OR REPLACE FUNCTION "SpiritsVerse".handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -317,7 +362,7 @@ DECLARE
   new_handle TEXT;
   counter INT := 0;
 BEGIN
-  base_handle := COALESCE(NEW.raw_user_meta_data->>'handle', 'user_' || substring(NEW.id::text from 1 for 8));
+  base_handle := "SpiritsVerse".verse_meta_handle(NEW.raw_user_meta_data, NEW.id);
   new_handle := base_handle;
 
   WHILE EXISTS (SELECT 1 FROM "SpiritsVerse".profiles WHERE handle = new_handle AND id <> NEW.id) LOOP
@@ -328,37 +373,83 @@ BEGIN
   INSERT INTO "SpiritsVerse".profiles (id, name, handle, date_of_birth, avatar, bio)
   VALUES (
     NEW.id,
-    COALESCE(NEW.raw_user_meta_data->>'name', 'New User'),
+    "SpiritsVerse".verse_meta_name(NEW.raw_user_meta_data, NEW.id),
     new_handle,
-    (NEW.raw_user_meta_data->>'date_of_birth')::DATE,
+    "SpiritsVerse".verse_meta_dob(NEW.raw_user_meta_data),
     'https://api.dicebear.com/7.x/avataaars/svg?seed=' || NEW.id,
     'Just another drink enthusiast.'
   )
-  ON CONFLICT (id) DO UPDATE SET
-    name = EXCLUDED.name,
-    handle = EXCLUDED.handle;
+  ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = "SpiritsVerse", public, auth;
 
--- App-specific trigger name (shared auth.users across Verse apps)
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+-- Provision SpiritsVerse profile for an existing shared Verse auth user (e.g. signed up on Cookbook.io)
+CREATE OR REPLACE FUNCTION "SpiritsVerse".ensure_my_profile()
+RETURNS SETOF "SpiritsVerse".profiles
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = "SpiritsVerse", public, auth
+AS $$
+DECLARE
+  uid UUID := auth.uid();
+  meta JSONB;
+  base_handle TEXT;
+  new_handle TEXT;
+  counter INT := 0;
+BEGIN
+  IF uid IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM "SpiritsVerse".profiles WHERE id = uid) THEN
+    RETURN QUERY SELECT * FROM "SpiritsVerse".profiles WHERE id = uid;
+    RETURN;
+  END IF;
+
+  SELECT raw_user_meta_data INTO meta FROM auth.users WHERE id = uid;
+  base_handle := "SpiritsVerse".verse_meta_handle(meta, uid);
+  new_handle := base_handle;
+
+  WHILE EXISTS (SELECT 1 FROM "SpiritsVerse".profiles WHERE handle = new_handle) LOOP
+    counter := counter + 1;
+    new_handle := base_handle || '_' || counter;
+  END LOOP;
+
+  INSERT INTO "SpiritsVerse".profiles (id, name, handle, date_of_birth, avatar, bio)
+  VALUES (
+    uid,
+    "SpiritsVerse".verse_meta_name(meta, uid),
+    new_handle,
+    "SpiritsVerse".verse_meta_dob(meta),
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=' || uid,
+    'Just another drink enthusiast.'
+  )
+  ON CONFLICT (id) DO NOTHING;
+
+  RETURN QUERY SELECT * FROM "SpiritsVerse".profiles WHERE id = uid;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION "SpiritsVerse".ensure_my_profile() TO authenticated;
+
+-- App-specific trigger only — do NOT drop other Verse app triggers on auth.users
 DROP TRIGGER IF EXISTS on_auth_user_created_spiritsverse ON auth.users;
 CREATE TRIGGER on_auth_user_created_spiritsverse
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION "SpiritsVerse".handle_new_user();
 
--- Backfill existing users
+-- Backfill existing shared Verse auth users into SpiritsVerse profiles
 INSERT INTO "SpiritsVerse".profiles (id, name, handle, date_of_birth, avatar, bio)
 SELECT
-  id,
-  COALESCE(raw_user_meta_data->>'name', 'User'),
-  COALESCE(raw_user_meta_data->>'handle', 'user_' || substring(id::text from 1 for 8)),
-  (raw_user_meta_data->>'date_of_birth')::DATE,
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=' || id,
+  au.id,
+  "SpiritsVerse".verse_meta_name(au.raw_user_meta_data, au.id),
+  "SpiritsVerse".verse_meta_handle(au.raw_user_meta_data, au.id),
+  "SpiritsVerse".verse_meta_dob(au.raw_user_meta_data),
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=' || au.id,
   'Just another drink enthusiast.'
-FROM auth.users
-WHERE id NOT IN (SELECT id FROM "SpiritsVerse".profiles)
+FROM auth.users au
+WHERE au.id NOT IN (SELECT id FROM "SpiritsVerse".profiles)
 ON CONFLICT (id) DO NOTHING;
 
 -- 11. FINAL PERMISSIONS

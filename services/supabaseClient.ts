@@ -2,6 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { User, Post, Group, ChatMessage, PostVisibility, ReactionType, SafetyReport, Story, Drink, DrinkPhoto, DrinkReview, DrinkChatMessage, PostComment, ReportCategory, PourUpInteraction } from '../types';
 import { moderatePostContent } from './geminiService';
+import { extractVerseUserMeta } from '../utils/verseAuth';
 
 const SUPABASE_URL =
   import.meta.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -41,7 +42,20 @@ export const supabase = createSupabaseClient();
 
 export const auth = {
     signIn: async (email: string, password: string) => {
-        return await supabase.auth.signInWithPassword({ email, password });
+        const result = await supabase.auth.signInWithPassword({ email, password });
+        if (!result.error && result.data.session) {
+            const profile = await api.ensureProfile();
+            if (!profile) {
+                return {
+                    ...result,
+                    error: {
+                        name: 'ProfileProvisionError',
+                        message: 'Signed in but could not set up your SpiritsVerse profile. Please try again.',
+                    },
+                };
+            }
+        }
+        return result;
     },
     signUp: async (email: string, password: string, name: string, handle: string, dob: string) => {
         const { data, error } = await supabase.auth.signUp({ 
@@ -52,15 +66,13 @@ export const auth = {
                     name,
                     handle,
                     date_of_birth: dob,
+                    site: 'SpiritsVerse',
                 }
             }
         });
         
         if (error) return { data, error };
 
-        // Attempt to create profile immediately only if we have a session.
-        // If email confirmation is enabled, session will be null and we rely on the DB trigger.
-        // This avoids "permission denied" or RLS errors for unauthenticated users.
         if (data.user && data.session) {
             await api.createProfile(data.user.id, name, handle, dob);
         }
@@ -102,13 +114,11 @@ export const api = {
     }
     
     try {
-        // First attempt to upsert
         let { error } = await supabase.from('profiles').upsert([payload], { onConflict: 'id' });
         
-        // Retry with modified handle if unique violation occurs (e.g. handle already taken by another user)
         if (error && (error.code === '23505' || error.message?.includes('unique') || error.message?.includes('handle'))) {
             console.warn("Handle taken, trying alternate...");
-            currentHandle = `${handle}_${Math.floor(Math.random() * 10000)}`;
+            currentHandle = `${handle}_${userId.substring(0, 4)}`;
             payload.handle = currentHandle;
             const retry = await supabase.from('profiles').upsert([payload], { onConflict: 'id' });
             error = retry.error;
@@ -116,44 +126,55 @@ export const api = {
 
         if (error) {
             console.error("Error creating profile:", error.message || JSON.stringify(error));
+            return false;
         }
+        return true;
     } catch (e) {
         console.error("Exception creating profile:", e);
+        return false;
     }
+  },
+
+  /** Ensure a SpiritsVerse profile exists for the current shared Verse auth session. */
+  ensureProfile: async (): Promise<User | null> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return null;
+
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .maybeSingle();
+
+    if (existing) {
+      return api.mapProfileToUser(existing);
+    }
+
+    const { data: rpcRows, error: rpcError } = await supabase.rpc('ensure_my_profile');
+    if (!rpcError && rpcRows?.length) {
+      return api.mapProfileToUser(rpcRows[0]);
+    }
+    if (rpcError) {
+      console.warn('ensure_my_profile RPC unavailable, using client fallback:', rpcError.message);
+    }
+
+    const meta = extractVerseUserMeta(session.user);
+    const created = await api.createProfile(session.user.id, meta.name, meta.handle, meta.dob);
+    if (!created) return null;
+
+    const { data: retryData } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .maybeSingle();
+
+    return retryData ? api.mapProfileToUser(retryData) : null;
   },
 
   getCurrentUser: async (): Promise<User | null> => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return null;
-
-    // 1. Try fetching existing profile
-    const { data, error } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
-    
-    // 2. If successful, map and return
-    if (data && !error) {
-        return api.mapProfileToUser(data);
-    }
-    
-    // 3. If profile is missing (error or null data), recover using Auth Metadata
-    console.warn("Profile missing for authenticated user. Attempting recovery from Auth metadata...");
-    
-    const meta = session.user.user_metadata || {};
-    const name = meta.name || session.user.email?.split('@')[0] || 'User';
-    // Fallback handle if not in metadata
-    const handle = meta.handle || `user_${session.user.id.substring(0,8)}`;
-    const dob = meta.date_of_birth || meta.dob;
-    
-    await api.createProfile(session.user.id, name, handle, dob);
-    
-    // 4. Fetch again after recovery attempt
-    const { data: retryData, error: retryError } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
-    
-    if (retryError || !retryData) {
-        console.error("Failed to recover profile:", retryError?.message || JSON.stringify(retryError));
-        return null;
-    }
-    
-    return api.mapProfileToUser(retryData);
+    return api.ensureProfile();
   },
 
   // Helper to keep user mapping consistent
