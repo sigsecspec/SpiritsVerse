@@ -283,20 +283,34 @@ const App: React.FC = () => {
     // Navigation State
     const [currentView, setCurrentView] = useState<AppView>(AppView.DRINK_DIRECTORY);
     const [selectedDrink, setSelectedDrink] = useState<Drink | null>(null);
+    const [sessionError, setSessionError] = useState<string | null>(null);
 
     const checkSession = async () => {
-        const { data: { session } } = await auth.getSession();
-        if (session) {
-            const currentUser = await api.getCurrentUser();
-            setUser(currentUser);
-            if (currentUser) {
-                setUserAge(calculateAge(currentUser.dateOfBirth));
+        try {
+            const { data: { session } } = await auth.getSession();
+            if (session) {
+                const currentUser = await api.getCurrentUser();
+                if (currentUser) {
+                    setUser(currentUser);
+                    setUserAge(calculateAge(currentUser.dateOfBirth));
+                } else {
+                    // Stale or broken session (e.g. after DB reset) — clear so login screen shows
+                    console.warn('Session exists but SpiritsVerse profile unavailable; signing out.');
+                    await auth.signOut();
+                    setUser(null);
+                    setUserAge(null);
+                }
+            } else {
+                setUser(null);
+                setUserAge(null);
             }
-        } else {
+        } catch (err) {
+            console.error('Session check failed:', err);
             setUser(null);
             setUserAge(null);
+        } finally {
+            setSessionChecked(true);
         }
-        setSessionChecked(true);
     };
 
     const refreshUser = async () => {
@@ -332,11 +346,69 @@ const App: React.FC = () => {
 
 
     useEffect(() => {
-        checkSession();
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-             checkSession();
+        let mounted = true;
+
+        const loadSession = async () => {
+            try {
+                const { data: { session } } = await auth.getSession();
+                if (!mounted) return;
+
+                if (session) {
+                    const currentUser = await api.getCurrentUser();
+                    if (!mounted) return;
+
+                    if (currentUser) {
+                        setUser(currentUser);
+                        setUserAge(calculateAge(currentUser.dateOfBirth));
+                    } else {
+                        console.warn('Session exists but SpiritsVerse profile unavailable; signing out.');
+                        await auth.signOut();
+                        setUser(null);
+                        setUserAge(null);
+                    }
+                } else {
+                    setUser(null);
+                    setUserAge(null);
+                }
+            } catch (err) {
+                console.error('Session check failed:', err);
+                if (mounted) {
+                    setUser(null);
+                    setUserAge(null);
+                    setSessionError('Could not connect. Check your network and Supabase settings.');
+                }
+            } finally {
+                if (mounted) setSessionChecked(true);
+            }
+        };
+
+        loadSession();
+
+        // Never call getSession inside the callback synchronously — it deadlocks Supabase auth
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+            if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'PASSWORD_RECOVERY') {
+                setTimeout(() => { if (mounted) loadSession(); }, 0);
+            }
         });
-        return () => subscription.unsubscribe();
+
+        return () => {
+            mounted = false;
+            subscription.unsubscribe();
+        };
+    }, []);
+
+    // Failsafe: never spin forever if auth hangs
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            setSessionChecked((checked) => {
+                if (!checked) {
+                    setSessionError('Loading timed out. Try refreshing or signing in again.');
+                    return true;
+                }
+                return checked;
+            });
+        }, 12000);
+        return () => window.clearTimeout(timer);
     }, []);
     
     useEffect(() => {
@@ -420,9 +492,18 @@ const App: React.FC = () => {
         setIsCreateStoryModalOpen(false);
     }
 
-    if (!sessionChecked) return <div className="min-h-screen bg-[var(--bg-main)] flex items-center justify-center"><Loader2 size={48} className="animate-spin text-[var(--accent)]" /></div>;
+    if (!sessionChecked) return <div className="min-h-screen bg-[var(--bg-main)] flex flex-col items-center justify-center gap-4 p-6"><Loader2 size={48} className="animate-spin text-[var(--accent)]" /><p className="text-sm text-[var(--text-muted)]">Opening the lounge…</p></div>;
 
-    if (!user) return <LandingPage onSuccess={() => checkSession()} />;
+    if (!user) return (
+        <>
+            {sessionError && (
+                <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[300] max-w-md w-full mx-4 p-3 bg-amber-900/30 border border-amber-600/50 rounded-lg text-amber-200 text-xs text-center">
+                    {sessionError}
+                </div>
+            )}
+            <LandingPage onSuccess={() => { setSessionError(null); setSessionChecked(false); checkSession(); }} />
+        </>
+    );
 
     return (
         <div className="flex h-screen overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)]">

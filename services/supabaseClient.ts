@@ -140,11 +140,15 @@ export const api = {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return null;
 
-    const { data: existing } = await supabase
+    const { data: existing, error: fetchError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', session.user.id)
       .maybeSingle();
+
+    if (fetchError) {
+      console.warn('Profile fetch error:', fetchError.message, fetchError.code);
+    }
 
     if (existing) {
       return api.mapProfileToUser(existing);
@@ -155,7 +159,7 @@ export const api = {
       return api.mapProfileToUser(rpcRows[0]);
     }
     if (rpcError) {
-      console.warn('ensure_my_profile RPC unavailable, using client fallback:', rpcError.message);
+      console.warn('ensure_my_profile RPC failed:', rpcError.message, rpcError.code);
     }
 
     const meta = extractVerseUserMeta(session.user);
