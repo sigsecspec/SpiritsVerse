@@ -1,7 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { User, Post, Group, ChatMessage, PostVisibility, ReactionType, SafetyReport, Story, Drink, DrinkPhoto, DrinkReview, DrinkChatMessage, PostComment, ReportCategory, PourUpInteraction } from '../types';
-import { moderatePostContent } from './geminiService';
 import {
   isExistingUserError,
   sanitizeHandle,
@@ -355,14 +354,6 @@ export const api = {
   },
 
   createPost: async (userId: string, content: string, visibility: PostVisibility, image?: string | null, lat?: number, lng?: number, groupId?: string, spirit?: string, buzzLevel?: number, venue?: string, isToastIt?: boolean, mood?: string, toastLookingFor?: string, toastExpiresAt?: string) => {
-    
-    if(isToastIt) {
-        const moderationResult = await moderatePostContent(content);
-        if (!moderationResult.isSafe) {
-            throw new Error(moderationResult.reason || "This post violates our safety guidelines.");
-        }
-    }
-
     const payload: any = { user_id: userId, content, image: image || null, visibility, latitude: lat, longitude: lng, spirit: spirit || null, buzz_level: buzzLevel || 0, venue: venue || null, is_toastit: isToastIt || false, mood: mood || null, toast_looking_for: toastLookingFor || null, toast_expires_at: toastExpiresAt || null };
     if (groupId) payload.group_id = groupId;
     const { error } = await supabase.from('posts').insert([payload]);

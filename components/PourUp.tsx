@@ -110,14 +110,11 @@ const PourUp: React.FC<{
     onReaction: (postId: string, type: ReactionType) => void, 
     onPost: (content: string, visibility: PostVisibility, image?: File | null, meta?: any, isToastIt?: boolean) => void, 
     isLoading: boolean, 
-    onBarLens: (file: File) => void, 
-    editedImage: File | null, 
-    onClearEditedImage: () => void,
     userAge: number | null,
     onReportPost: (postId: string, reportedUserId: string, category: ReportCategory, reason: string) => Promise<void>,
     onBlockUser: (blockedId: string) => Promise<void>,
     onMatch: (groupId: string) => void,
-}> = ({ user, posts, onReaction, onPost, isLoading, onBarLens, editedImage, onClearEditedImage, userAge, onReportPost, onBlockUser, onMatch }) => {
+}> = ({ user, posts, onReaction, onPost, isLoading, userAge, onReportPost, onBlockUser, onMatch }) => {
     const [isPostModalOpen, setPostModalOpen] = useState(false);
     const [reportingPost, setReportingPost] = useState<Post | null>(null);
     const [tappingPost, setTappingPost] = useState<Post | null>(null);
@@ -242,7 +239,7 @@ const PourUp: React.FC<{
 
     return (
         <div className="flex flex-col h-full bg-[var(--bg-main)]">
-            {isPostModalOpen && <CreatePostModal onClose={() => setPostModalOpen(false)} onPost={onPost} onBarLens={onBarLens} isLocal={false} editedImage={editedImage} onClearEditedImage={onClearEditedImage} isToastItPost={true} />}
+            {isPostModalOpen && <CreatePostModal onClose={() => setPostModalOpen(false)} onPost={onPost} isLocal={false} isToastItPost={true} />}
             <div className="flex-1 overflow-y-auto">
                 {renderFeed()}
             </div>

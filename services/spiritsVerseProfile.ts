@@ -6,22 +6,16 @@ import { deriveProfileFromAuthUser, SPIRITSVERSE_SCHEMA } from '../utils/verseAu
 export const spiritsVerse = (client: SupabaseClient) => client.schema(SPIRITSVERSE_SCHEMA);
 
 export function mapProfileRowToUser(data: Record<string, unknown>): User {
-  const mockBadges = [
-    { id: '1', name: 'First Sip', description: 'You created your account!', icon: '🍹' },
-  ];
   return {
     ...data,
     distanceRadius: (data.distance_radius as number) || 25,
     city: data.city,
     state: data.state,
-    badges:
-      data.badges && Array.isArray(data.badges) && data.badges.length > 0
-        ? data.badges
-        : mockBadges,
+    badges: Array.isArray(data.badges) ? data.badges : [],
     dateOfBirth: data.date_of_birth,
     status: data.status,
     role: data.role,
-    widgets: data.widgets || [],
+    widgets: Array.isArray(data.widgets) ? data.widgets : [],
   } as User;
 }
 

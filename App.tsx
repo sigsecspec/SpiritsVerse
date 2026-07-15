@@ -1,10 +1,9 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { AppView, User, Post, Group, PostVisibility, ReactionType, Story, DrinkSuggestion, GameScore, Drink, DrinkPhoto, DrinkReview, DrinkChatMessage, ReportCategory } from './types';
-import { BookOpen, Wine, MapPin, Users, User as UserIcon, Send, Flame, Image as ImageIcon, XCircle, Music, Rocket, GlassWater, HelpCircle, Heart, Radio, Camera, Plus, Search, LogOut, Settings, Loader2, Wand2, Quote, ArrowLeft, Star, MessageSquare, Lightbulb, Copy, Filter } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { AppView, User, Post, Group, PostVisibility, ReactionType, Story, Drink, ReportCategory } from './types';
+import { BookOpen, Wine, MapPin, Users, User as UserIcon, Flame, Loader2, ArrowLeft, Filter } from 'lucide-react';
 import ProfileCanvas from './components/ProfileCanvas';
 import { api, auth, supabase } from './services/supabaseClient';
-import { generateDrunkenWisdom, generateBarLensImage, generateToastOfTheDay } from './services/geminiService';
 import LandingPage from './components/LandingPage';
 import DrinkVerseDirectory from './components/DrinkVerseDirectory';
 import DrinkProfilePage from './components/DrinkProfilePage';
@@ -28,28 +27,6 @@ const viewConfig: Record<AppView, { title: string; icon: React.ElementType; ageG
 };
 
 // --- UTILITY FUNCTIONS ---
-const fileToBase64 = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = (error) => reject(error);
-  });
-
-const base64toFile = (base64: string, filename: string): File => {
-  const arr = base64.split(',');
-  const mimeMatch = arr[0].match(/:(.*?);/);
-  if (!mimeMatch) throw new Error("Invalid base64 string");
-  const mime = mimeMatch[1];
-  const bstr = atob(arr[1]);
-  let n = bstr.length;
-  const u8arr = new Uint8Array(n);
-  while (n--) {
-    u8arr[n] = bstr.charCodeAt(n);
-  }
-  return new File([u8arr], filename, { type: mime });
-}
-
 const calculateAge = (dobString?: string): number | null => {
     if (!dobString) return null;
     const birthDate = new Date(dobString);
@@ -82,22 +59,8 @@ const ProfileView: React.FC<{ user: User, posts: Post[], friendCount: number, ta
 
 
 // --- LAYOUT COMPONENTS ---
-const RightSidebar: React.FC<{ user: User }> = ({ user }) => {
-    const [toast, setToast] = useState('');
-
-    useEffect(() => {
-        generateToastOfTheDay().then(setToast);
-    }, []);
-
-    return (
+const RightSidebar: React.FC<{ user: User }> = ({ user }) => (
     <aside className="w-80 h-screen sticky top-0 border-l border-[var(--border)] p-6 hidden xl:flex flex-col gap-6 bg-[var(--bg-main)]">
-       <div className="bg-[var(--bg-card)] border border-[var(--border)] p-4 rounded-lg shadow-sm">
-            <h3 className="font-bold text-lg mb-4 text-[var(--accent)] font-serif">Daily Toast</h3>
-            <div className="text-sm text-[var(--text-secondary)] italic flex gap-3 font-serif">
-                <Quote size={20} className="text-[var(--accent)]/50 flex-shrink-0" />
-                {toast || <span className="animate-pulse">Pouring wisdom...</span>}
-            </div>
-       </div>
        <div className="bg-[var(--bg-card)] border border-[var(--border)] p-4 rounded-lg shadow-sm">
             <h3 className="font-bold text-lg mb-4 text-[var(--text-main)] font-serif">Favorites</h3>
             <div className="flex flex-wrap gap-2">
@@ -111,8 +74,7 @@ const RightSidebar: React.FC<{ user: User }> = ({ user }) => {
             </div>
        </div>
     </aside>
-    );
-};
+);
 
 const Header: React.FC<{ title: string, onBack?: () => void, currentView: AppView }> = ({ title, onBack, currentView }) => {
     return (
@@ -135,130 +97,6 @@ const Header: React.FC<{ title: string, onBack?: () => void, currentView: AppVie
 };
 
 
-// --- MODAL COMPONENTS ---
-
-const WisdomModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-    const [wisdom, setWisdom] = useState('');
-    const [isLoading, setIsLoading] = useState(true);
-    const [copied, setCopied] = useState(false);
-
-    const getNewWisdom = async () => {
-        setIsLoading(true);
-        const newWisdom = await generateDrunkenWisdom();
-        setWisdom(newWisdom);
-        setIsLoading(false);
-    };
-
-    useEffect(() => {
-        getNewWisdom();
-    }, []);
-
-    const handleCopy = () => {
-        navigator.clipboard.writeText(wisdom);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    }
-
-    return (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
-            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl w-full max-w-md flex flex-col shadow-2xl shadow-[var(--shadow-color)]" onClick={e => e.stopPropagation()}>
-                <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
-                    <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2 font-serif"><Lightbulb size={18} className="text-[var(--accent)]" /> Bar Wisdom</h2>
-                    <button onClick={onClose} className="p-2 hover:bg-[var(--bg-hover)] rounded-full transition-colors text-[var(--text-muted)] hover:text-[var(--text-main)]"><XCircle size={20} /></button>
-                </div>
-                <div className="p-8 flex-1 text-center min-h-[150px] flex items-center justify-center">
-                    {isLoading ? (
-                        <Loader2 size={32} className="text-[var(--accent)] animate-spin" />
-                    ) : (
-                        <p className="text-xl text-[var(--text-secondary)] italic font-serif">"{wisdom}"</p>
-                    )}
-                </div>
-                <div className="p-4 border-t border-[var(--border)] flex justify-end gap-3">
-                    <button onClick={handleCopy} className="px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors flex items-center gap-2">
-                        <Copy size={16} /> {copied ? 'Copied!' : 'Copy'}
-                    </button>
-                    <button onClick={getNewWisdom} className="px-6 py-2 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-black rounded-lg font-medium flex items-center gap-2 transition-colors">
-                        Another Round
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const BarLensModal: React.FC<{ imageFile: File, onClose: () => void, onApply: (newImageFile: File) => void }> = ({ imageFile, onClose, onApply }) => {
-    const [prompt, setPrompt] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [editedImage, setEditedImage] = useState<string | null>(null);
-    const [error, setError] = useState('');
-    const originalImageUrl = useRef(URL.createObjectURL(imageFile));
-
-    const handleGenerate = async () => {
-        if (!prompt) return;
-        setIsLoading(true);
-        setError('');
-        setEditedImage(null);
-
-        try {
-            const base64Image = await fileToBase64(imageFile);
-            const imageData = base64Image.split(',')[1];
-            const mimeType = base64Image.match(/data:(.*);base64,/)?.[1] || 'image/jpeg';
-
-            const newBase64Data = await generateBarLensImage(prompt, imageData, mimeType);
-            if (newBase64Data) {
-                setEditedImage(`data:image/png;base64,${newBase64Data}`);
-            } else {
-                throw new Error("AI couldn't process the image. Try a different prompt.");
-            }
-        } catch (e: any) {
-            setError(e.message || "Something went wrong.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-    
-    const handleApply = () => {
-        if (!editedImage) return;
-        const newFile = base64toFile(editedImage, `barlens-${imageFile.name}.png`);
-        onApply(newFile);
-        onClose();
-    }
-
-    return (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
-            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl w-full max-w-lg flex flex-col shadow-2xl shadow-[var(--shadow-color)]" onClick={e => e.stopPropagation()}>
-                <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
-                    <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2 font-serif"><Wand2 size={18} className="text-[var(--accent)]" /> Drink Cam</h2>
-                    <button onClick={onClose} className="p-2 hover:bg-[var(--bg-hover)] rounded-full transition-colors text-[var(--text-muted)] hover:text-[var(--text-main)]"><XCircle size={20} /></button>
-                </div>
-                <div className="p-4 flex-1">
-                    <div className="aspect-square w-full rounded-lg bg-[var(--bg-input)] flex items-center justify-center overflow-hidden relative border border-[var(--border)]">
-                         <img src={editedImage || originalImageUrl.current} alt="Bar Lens preview" className="max-h-full max-w-full" />
-                         {isLoading && (
-                            <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-2 text-white">
-                                <Loader2 size={32} className="animate-spin text-[var(--accent)]"/>
-                                <span className="font-serif italic">Mixing pixels...</span>
-                            </div>
-                         )}
-                    </div>
-                     {error && <p className="text-red-400 text-xs text-center mt-2">{error}</p>}
-                    <textarea value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Describe the vibe... e.g., 'neon cyberpunk bar', 'vintage speakeasy'" className="w-full bg-[var(--bg-input)] border border-[var(--border)] rounded-lg p-3 text-sm mt-4 h-16 focus:outline-none focus:border-[var(--accent)]" />
-                    <button onClick={handleGenerate} disabled={isLoading || !prompt} className="w-full mt-2 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-black py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
-                        {isLoading ? 'Generating...' : 'Apply Filter'}
-                    </button>
-                </div>
-                <div className="p-4 border-t border-[var(--border)] flex justify-end gap-3">
-                    <button onClick={onClose} className="px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors">Cancel</button>
-                    <button onClick={handleApply} disabled={!editedImage || isLoading} className="px-6 py-2 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-black rounded-lg font-medium flex items-center gap-2 transition-colors disabled:opacity-50">
-                        Save
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-
 // --- MAIN APP COMPONENT ---
 
 const App: React.FC = () => {
@@ -273,11 +111,6 @@ const App: React.FC = () => {
     const [friendCount, setFriendCount] = useState(0);
     const [tastedDrinks, setTastedDrinks] = useState<Drink[]>([]);
     const [activeGroup, setActiveGroup] = useState<Group | null>(null);
-    
-    // New Modal State
-    const [isWisdomModalOpen, setIsWisdomModalOpen] = useState(false);
-    const [barLensFile, setBarLensFile] = useState<File | null>(null);
-    const [editedImage, setEditedImage] = useState<File | null>(null);
     const [isCreateStoryModalOpen, setIsCreateStoryModalOpen] = useState(false);
 
     // Navigation State
@@ -518,13 +351,10 @@ const App: React.FC = () => {
                 }} 
                 user={user} 
                 onSignOut={handleSignOut}
-                onWisdomClick={() => setIsWisdomModalOpen(true)}
                 userAge={userAge}
             />
             
             <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
-                {isWisdomModalOpen && <WisdomModal onClose={() => setIsWisdomModalOpen(false)} />}
-                {barLensFile && <BarLensModal imageFile={barLensFile} onClose={() => setBarLensFile(null)} onApply={(newFile) => { setEditedImage(newFile); setBarLensFile(null); }} />}
                 {isCreateStoryModalOpen && <CreateStoryModal onClose={() => setIsCreateStoryModalOpen(false)} onPost={handleCreateStory} />}
                 
                 {/* Header Logic */}
@@ -584,9 +414,6 @@ const App: React.FC = () => {
                             isLocal={false} 
                             stories={stories} 
                             isLoading={isPostsLoading}
-                            onBarLens={(f) => setBarLensFile(f)}
-                            editedImage={editedImage}
-                            onClearEditedImage={() => setEditedImage(null)}
                             onAddStoryClick={() => setIsCreateStoryModalOpen(true)}
                         />
                     )}
@@ -599,9 +426,6 @@ const App: React.FC = () => {
                             onPost={handleCreatePost} 
                             stories={stories} 
                             isLoading={isPostsLoading}
-                            onBarLens={(f) => setBarLensFile(f)}
-                            editedImage={editedImage}
-                            onClearEditedImage={() => setEditedImage(null)}
                         />
                     )}
 
@@ -612,9 +436,6 @@ const App: React.FC = () => {
                             onReaction={onReaction} 
                             onPost={handleCreatePost}
                             isLoading={isPostsLoading}
-                            onBarLens={(f) => setBarLensFile(f)}
-                            editedImage={editedImage}
-                            onClearEditedImage={() => setEditedImage(null)}
                             userAge={userAge}
                             onReportPost={async (postId, reportedUserId, category, reason) => {
                                 await api.reportPost(user.id, reportedUserId, postId, category, reason);

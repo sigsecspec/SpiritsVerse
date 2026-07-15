@@ -7,7 +7,7 @@ import { DrinkStories, SkeletonPost } from './common';
 import { api } from '../services/supabaseClient';
 
 
-const SipStream: React.FC<{ user: User, posts: Post[], onReaction: (postId: string, type: ReactionType) => void, onPost: (content: string, visibility: PostVisibility, image?: File | null, meta?: any, isToastIt?: boolean) => void, isLocal?: boolean, stories: Story[], isLoading: boolean, onBarLens: (file: File) => void, editedImage: File | null, onClearEditedImage: () => void, onAddStoryClick: () => void }> = ({ user, posts, onReaction, onPost, isLocal = false, stories, isLoading, onBarLens, editedImage, onClearEditedImage, onAddStoryClick }) => {
+const SipStream: React.FC<{ user: User, posts: Post[], onReaction: (postId: string, type: ReactionType) => void, onPost: (content: string, visibility: PostVisibility, image?: File | null, meta?: any, isToastIt?: boolean) => void, isLocal?: boolean, stories: Story[], isLoading: boolean, onAddStoryClick: () => void }> = ({ user, posts, onReaction, onPost, isLocal = false, stories, isLoading, onAddStoryClick }) => {
     const [isPostModalOpen, setPostModalOpen] = useState(false);
     const [localPosts, setLocalPosts] = useState<Post[]>(posts);
     const [openCommentsPostId, setOpenCommentsPostId] = useState<string | null>(null);
@@ -63,7 +63,7 @@ const SipStream: React.FC<{ user: User, posts: Post[], onReaction: (postId: stri
 
     return (
         <div className="pb-24 lg:pb-6 relative">
-            {isPostModalOpen && <CreatePostModal onClose={() => setPostModalOpen(false)} onPost={onPost} onBarLens={onBarLens} isLocal={isLocal} editedImage={editedImage} onClearEditedImage={onClearEditedImage} />}
+            {isPostModalOpen && <CreatePostModal onClose={() => setPostModalOpen(false)} onPost={onPost} isLocal={isLocal} />}
             <DrinkStories stories={stories} onAddStoryClick={onAddStoryClick} />
 
             {!isLocal && (
