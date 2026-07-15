@@ -1,8 +1,8 @@
-import { readFileSync } from 'node:fs';
-import { execSync } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
+import toIco from 'to-ico';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicDir = resolve(__dirname, '../public');
@@ -26,6 +26,10 @@ for (const { name, size } of sizes) {
   console.log(`Generated public/${name}`);
 }
 
-execSync('python3 scripts/generate-favicon-ico.py', { stdio: 'inherit' });
+const icoBuffers = [16, 32, 48].map((size) =>
+  readFileSync(resolve(publicDir, `favicon-${size}.png`))
+);
+writeFileSync(resolve(publicDir, 'favicon.ico'), await toIco(icoBuffers));
+console.log('Generated public/favicon.ico');
 
 console.log('Generated SpiritsVerse icons in public/.');
