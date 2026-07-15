@@ -1,24 +1,43 @@
 
-
 import { createClient } from '@supabase/supabase-js';
 import { User, Post, Group, ChatMessage, PostVisibility, ReactionType, SafetyReport, Story, Drink, DrinkPhoto, DrinkReview, DrinkChatMessage, PostComment, ReportCategory, PourUpInteraction } from '../types';
 import { moderatePostContent } from './geminiService';
 
+const SUPABASE_URL =
+  import.meta.env.NEXT_PUBLIC_SUPABASE_URL ||
+  import.meta.env.VITE_SUPABASE_URL;
 
-const SUPABASE_URL = import.meta.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const SUPABASE_KEY =
+  import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  throw new Error(
-    'Missing Supabase config. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in .env (see .env.example).'
-  );
+const PLACEHOLDER_KEYS = new Set([
+  '',
+  'your_publishable_key_here',
+  'your_key_from_supabase_dashboard',
+]);
+
+/** True when real Supabase credentials are present (not missing or placeholder). */
+export const isSupabaseConfigured = Boolean(
+  SUPABASE_URL &&
+  SUPABASE_KEY &&
+  !PLACEHOLDER_KEYS.has(SUPABASE_KEY)
+);
+
+function createSupabaseClient() {
+  if (!isSupabaseConfigured) {
+    // Stub client so module imports never throw; App gates on isSupabaseConfigured.
+    return createClient('https://placeholder.supabase.co', 'public-anon-key', {
+      db: { schema: 'SpiritsVerse' },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  }
+  return createClient(SUPABASE_URL!, SUPABASE_KEY!, {
+    db: { schema: 'SpiritsVerse' },
+  });
 }
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  db: {
-    schema: 'SpiritsVerse',
-  },
-});
+export const supabase = createSupabaseClient();
 
 export const auth = {
     signIn: async (email: string, password: string) => {

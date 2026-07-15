@@ -1,6 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import ConfigSetup from './components/ConfigSetup';
+import { isSupabaseConfigured } from './services/supabaseClient';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -10,6 +12,6 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    {isSupabaseConfigured ? <App /> : <ConfigSetup />}
   </React.StrictMode>
 );
