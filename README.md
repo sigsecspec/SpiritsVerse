@@ -18,7 +18,8 @@ View your app in AI Studio: https://ai.studio/apps/461ef4f9-48cb-4b40-87c1-df7f8
    - `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — required. SpiritsVerse
      talks to a shared "Verse" Supabase project (also used by Cookbook.io and StrainVerse). Ask a
      project maintainer for the publishable key, or point these at your own Supabase project and
-     run [`sql/update.sql`](sql/update.sql) (idempotent) or [`sql.txt`](sql.txt) (full reset) in the
+     run [`sql/update.sql`](sql/update.sql) (idempotent) or [`sql/complete-setup.sql`](sql/complete-setup.sql)
+     (drops legacy `spirits` schema + fresh `SpiritsVerse` install) or [`sql.txt`](sql.txt) (full reset) in the
      Supabase SQL editor to create the `SpiritsVerse` schema.
    - `GEMINI_API_KEY` — optional. Powers AI features (Drink Cam image edits, Bar Wisdom, Toast of
      the Day, AI theme generation, and PourUp content moderation). Without it, those features fall

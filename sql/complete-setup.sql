@@ -1,0 +1,496 @@
+-- =============================================================================
+-- SpiritsVerse — COMPLETE DATABASE SETUP
+-- Run this entire script in the Supabase SQL Editor (one shot, or section by section).
+--
+-- What it does:
+--   1. Drops legacy "spirits" schema (old name)
+--   2. Drops and recreates "SpiritsVerse" schema (fresh install)
+--   3. Creates all tables, RLS, realtime, shared Verse auth, seed data
+--
+-- WARNING: This deletes all SpiritsVerse data. auth.users (Cookbook/Verse logins) is NOT touched.
+-- =============================================================================
+
+-- -----------------------------------------------------------------------------
+-- STEP 1: Drop legacy schemas
+-- -----------------------------------------------------------------------------
+DROP SCHEMA IF EXISTS spirits CASCADE;
+DROP SCHEMA IF EXISTS "spirits" CASCADE;
+DROP SCHEMA IF EXISTS "Spirits" CASCADE;
+DROP SCHEMA IF EXISTS "SpiritsVerse" CASCADE;
+
+-- -----------------------------------------------------------------------------
+-- STEP 2: Create SpiritsVerse schema + grants
+-- -----------------------------------------------------------------------------
+CREATE SCHEMA "SpiritsVerse";
+
+GRANT USAGE ON SCHEMA "SpiritsVerse" TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA "SpiritsVerse" GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA "SpiritsVerse" GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+
+-- -----------------------------------------------------------------------------
+-- STEP 3: Tables
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE "SpiritsVerse".profiles (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    handle TEXT NOT NULL,
+    avatar TEXT,
+    bio TEXT,
+    city TEXT,
+    state TEXT,
+    latitude FLOAT8,
+    longitude FLOAT8,
+    distance_radius FLOAT8 DEFAULT 25,
+    fav_drinks JSONB DEFAULT '[]'::JSONB,
+    drinking_style TEXT,
+    badges JSONB DEFAULT '[]'::JSONB,
+    widgets JSONB DEFAULT '[]'::JSONB,
+    custom_css TEXT,
+    custom_js TEXT,
+    date_of_birth DATE,
+    status TEXT DEFAULT 'active',
+    role TEXT DEFAULT 'User',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT unique_handle UNIQUE (handle)
+);
+
+CREATE TABLE "SpiritsVerse".spirits (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    category TEXT NOT NULL,
+    description TEXT,
+    abv FLOAT,
+    age INT,
+    region TEXT,
+    tasting_notes JSONB DEFAULT '[]'::JSONB,
+    pairs_with JSONB DEFAULT '[]'::JSONB,
+    maker TEXT,
+    history TEXT,
+    recipe TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE "SpiritsVerse".posts (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
+    content TEXT NOT NULL,
+    image TEXT,
+    visibility TEXT NOT NULL,
+    latitude FLOAT8,
+    longitude FLOAT8,
+    comments INT DEFAULT 0,
+    spirit TEXT,
+    buzz_level INT DEFAULT 0,
+    venue TEXT,
+    mood TEXT,
+    badges JSONB DEFAULT '[]'::JSONB,
+    is_toastit BOOLEAN DEFAULT FALSE,
+    toast_looking_for TEXT,
+    toast_expires_at TIMESTAMPTZ,
+    group_id TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE "SpiritsVerse".post_reactions (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    post_id UUID REFERENCES "SpiritsVerse".posts(id) ON DELETE CASCADE NOT NULL,
+    user_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
+    type TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (post_id, user_id)
+);
+
+CREATE TABLE "SpiritsVerse".post_comments (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    post_id UUID REFERENCES "SpiritsVerse".posts(id) ON DELETE CASCADE NOT NULL,
+    user_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE "SpiritsVerse".groups (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    name TEXT NOT NULL,
+    description TEXT,
+    type TEXT NOT NULL,
+    members JSONB DEFAULT '[]'::JSONB,
+    cover_image_url TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE "SpiritsVerse".messages (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    group_id TEXT REFERENCES "SpiritsVerse".groups(id) ON DELETE CASCADE NOT NULL,
+    user_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
+    text TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE "SpiritsVerse".spirit_photos (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    spirit_id UUID REFERENCES "SpiritsVerse".spirits(id) ON DELETE CASCADE NOT NULL,
+    user_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
+    image_url TEXT NOT NULL,
+    serving_style TEXT DEFAULT 'BAR',
+    cocktail_name TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE "SpiritsVerse".spirit_reviews (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    spirit_id UUID REFERENCES "SpiritsVerse".spirits(id) ON DELETE CASCADE NOT NULL,
+    user_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
+    rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
+    text TEXT,
+    serving_style TEXT DEFAULT 'BAR',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, spirit_id, serving_style)
+);
+
+CREATE TABLE "SpiritsVerse".spirit_chat_messages (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    spirit_id UUID REFERENCES "SpiritsVerse".spirits(id) ON DELETE CASCADE NOT NULL,
+    user_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
+    message TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE "SpiritsVerse".user_spirit_log (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
+    spirit_id UUID REFERENCES "SpiritsVerse".spirits(id) ON DELETE CASCADE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, spirit_id)
+);
+
+CREATE TABLE "SpiritsVerse".stories (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
+    image_url TEXT NOT NULL,
+    spirit_name TEXT,
+    buzz_level INT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE "SpiritsVerse".relationships (
+    user_1_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
+    user_2_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
+    type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    PRIMARY KEY (user_1_id, user_2_id)
+);
+
+CREATE TABLE "SpiritsVerse".blocks (
+    blocker_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
+    blocked_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (blocker_id, blocked_id)
+);
+
+CREATE TABLE "SpiritsVerse".reports (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    reporter_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
+    reported_user_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
+    post_id UUID REFERENCES "SpiritsVerse".posts(id) ON DELETE CASCADE,
+    category TEXT NOT NULL,
+    reason TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE "SpiritsVerse".toastit_interactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID REFERENCES "SpiritsVerse".posts(id) ON DELETE CASCADE NOT NULL,
+    sender_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
+    receiver_id UUID REFERENCES "SpiritsVerse".profiles(id) ON DELETE CASCADE NOT NULL,
+    message TEXT,
+    type TEXT NOT NULL CHECK (type IN ('RAISE_GLASS', 'CLINK')),
+    status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'TOASTED', 'DECLINED')),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    group_id TEXT REFERENCES "SpiritsVerse".groups(id) ON DELETE SET NULL,
+    UNIQUE (post_id, sender_id)
+);
+
+CREATE TABLE "SpiritsVerse".safety_reports (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references "SpiritsVerse".profiles(id) on delete cascade not null,
+  latitude float not null,
+  longitude float not null,
+  status text not null,
+  created_at timestamptz default now()
+);
+
+-- -----------------------------------------------------------------------------
+-- STEP 4: Views + seed drinks
+-- -----------------------------------------------------------------------------
+
+CREATE OR REPLACE VIEW "SpiritsVerse".spirits_with_stats AS
+SELECT
+  s.*,
+  (SELECT count(*) FROM "SpiritsVerse".spirit_photos sp WHERE sp.spirit_id = s.id) AS photo_count,
+  (SELECT count(*) FROM "SpiritsVerse".spirit_reviews sr WHERE sr.spirit_id = s.id) AS review_count,
+  (SELECT avg(sr.rating) FROM "SpiritsVerse".spirit_reviews sr WHERE sr.spirit_id = s.id) AS avg_rating,
+  (SELECT sp.image_url FROM "SpiritsVerse".spirit_photos sp WHERE sp.spirit_id = s.id ORDER BY sp.created_at DESC LIMIT 1) AS cover_image_url
+FROM "SpiritsVerse".spirits s;
+
+INSERT INTO "SpiritsVerse".spirits (name, category, description, abv, age, region, tasting_notes, maker, history, recipe) VALUES
+('Old Fashioned', 'Cocktail', 'The definition of a cocktail: spirits, sugar, water, and bitters.', 32, 0, 'Global', '["citrus", "oak", "sweet"]', 'Classic', 'Originated in the 19th century.', '2 oz Whiskey, 1 Sugar Cube, Angostura Bitters.'),
+('Macallan 12', 'Whiskey', 'Sherry oak single malt.', 40, 12, 'Speyside, Scotland', '["dried fruit", "ginger", "wood smoke"]', 'The Macallan', null, null),
+('Margarita', 'Cocktail', 'A classic tequila sour.', 26, 0, 'Mexico', '["lime", "salt", "agave"]', 'Classic', null, '2 oz Tequila, 1 oz Lime, 0.5 oz Orange Liqueur'),
+('Guinness Draught', 'Beer', 'Iconic Irish dry stout.', 4.2, 0, 'Dublin, Ireland', '["coffee", "chocolate", "malt"]', 'Guinness', 'Brewed at St. James Gate since 1759.', null),
+('Hendrick''s Gin', 'Gin', 'Infused with cucumber and rose.', 41.4, 0, 'Scotland', '["cucumber", "floral", "citrus"]', 'William Grant', null, null),
+('Negroni', 'Cocktail', 'A popular Italian cocktail.', 24, 0, 'Florence, Italy', '["bitter", "sweet", "herbal"]', 'Classic', 'Invented in 1919 by Count Camillo Negroni.', '1 oz Gin, 1 oz Campari, 1 oz Sweet Vermouth'),
+('Aperol Spritz', 'Cocktail', 'Refreshing Italian wine-based cocktail.', 11, 0, 'Venice, Italy', '["orange", "bubbly", "refreshing"]', 'Classic', 'Became popular in the 1950s.', '3 parts Prosecco, 2 parts Aperol, 1 part Soda Water');
+
+-- -----------------------------------------------------------------------------
+-- STEP 5: Row Level Security
+-- -----------------------------------------------------------------------------
+
+ALTER TABLE "SpiritsVerse".profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SpiritsVerse".posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SpiritsVerse".post_reactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SpiritsVerse".post_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SpiritsVerse".spirits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SpiritsVerse".spirit_photos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SpiritsVerse".spirit_reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SpiritsVerse".spirit_chat_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SpiritsVerse".user_spirit_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SpiritsVerse".stories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SpiritsVerse".relationships ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SpiritsVerse".toastit_interactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SpiritsVerse".blocks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SpiritsVerse".reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SpiritsVerse".groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SpiritsVerse".messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SpiritsVerse".safety_reports ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public read profiles" ON "SpiritsVerse".profiles FOR SELECT USING (true);
+CREATE POLICY "Users update own profile" ON "SpiritsVerse".profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users insert own profile" ON "SpiritsVerse".profiles FOR INSERT WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Public read posts" ON "SpiritsVerse".posts FOR SELECT USING (true);
+CREATE POLICY "Users create posts" ON "SpiritsVerse".posts FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Public read spirits" ON "SpiritsVerse".spirits FOR SELECT USING (true);
+
+CREATE POLICY "Auth all reactions" ON "SpiritsVerse".post_reactions FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Auth all comments" ON "SpiritsVerse".post_comments FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Auth all groups" ON "SpiritsVerse".groups FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Auth all messages" ON "SpiritsVerse".messages FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Auth all photos" ON "SpiritsVerse".spirit_photos FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Auth all reviews" ON "SpiritsVerse".spirit_reviews FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Auth all spirit chat" ON "SpiritsVerse".spirit_chat_messages FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Auth all logs" ON "SpiritsVerse".user_spirit_log FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Auth all stories" ON "SpiritsVerse".stories FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Auth all interactions" ON "SpiritsVerse".toastit_interactions FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Auth all relationships" ON "SpiritsVerse".relationships FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Auth all blocks" ON "SpiritsVerse".blocks FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Auth all reports" ON "SpiritsVerse".reports FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Auth all safety" ON "SpiritsVerse".safety_reports FOR ALL USING (auth.role() = 'authenticated');
+
+-- -----------------------------------------------------------------------------
+-- STEP 6: Realtime
+-- -----------------------------------------------------------------------------
+
+DO $realtime$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'SpiritsVerse' AND tablename = 'spirits'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE "SpiritsVerse".spirits;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'SpiritsVerse' AND tablename = 'posts'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE "SpiritsVerse".posts;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'SpiritsVerse' AND tablename = 'messages'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE "SpiritsVerse".messages;
+  END IF;
+END;
+$realtime$;
+
+-- -----------------------------------------------------------------------------
+-- STEP 7: Shared Verse auth (Cookbook, StrainVerse, etc.)
+-- -----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION "SpiritsVerse".verse_meta_handle(meta JSONB, user_id UUID)
+RETURNS TEXT
+LANGUAGE plpgsql
+IMMUTABLE
+AS $verse_handle$
+DECLARE
+  base_handle TEXT;
+BEGIN
+  base_handle := lower(regexp_replace(COALESCE(
+    meta->>'handle',
+    meta->>'username',
+    meta->>'user_name',
+    meta->>'preferred_username',
+    split_part((SELECT email FROM auth.users WHERE id = user_id), '@', 1),
+    'user_' || substring(user_id::text from 1 for 8)
+  ), '^@', ''));
+  base_handle := regexp_replace(base_handle, '\s+', '', 'g');
+  IF base_handle = '' THEN
+    base_handle := 'user_' || substring(user_id::text from 1 for 8);
+  END IF;
+  RETURN left(base_handle, 32);
+END;
+$verse_handle$;
+
+CREATE OR REPLACE FUNCTION "SpiritsVerse".verse_meta_name(meta JSONB, user_id UUID)
+RETURNS TEXT
+LANGUAGE plpgsql
+STABLE
+AS $verse_name$
+BEGIN
+  RETURN COALESCE(
+    meta->>'name',
+    meta->>'full_name',
+    meta->>'display_name',
+    split_part((SELECT email FROM auth.users WHERE id = user_id), '@', 1),
+    'User'
+  );
+END;
+$verse_name$;
+
+CREATE OR REPLACE FUNCTION "SpiritsVerse".verse_meta_dob(meta JSONB)
+RETURNS DATE
+LANGUAGE plpgsql
+IMMUTABLE
+AS $verse_dob$
+BEGIN
+  RETURN COALESCE(
+    NULLIF(meta->>'date_of_birth', '')::DATE,
+    NULLIF(meta->>'dob', '')::DATE,
+    NULLIF(meta->>'birthday', '')::DATE
+  );
+END;
+$verse_dob$;
+
+CREATE OR REPLACE FUNCTION "SpiritsVerse".handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = "SpiritsVerse", public, auth
+AS $verse_new_user$
+DECLARE
+  base_handle TEXT;
+  new_handle TEXT;
+  counter INT := 0;
+BEGIN
+  base_handle := "SpiritsVerse".verse_meta_handle(NEW.raw_user_meta_data, NEW.id);
+  new_handle := base_handle;
+
+  WHILE EXISTS (SELECT 1 FROM "SpiritsVerse".profiles WHERE handle = new_handle AND id <> NEW.id) LOOP
+    counter := counter + 1;
+    new_handle := base_handle || '_' || counter;
+  END LOOP;
+
+  INSERT INTO "SpiritsVerse".profiles (id, name, handle, date_of_birth, avatar, bio)
+  VALUES (
+    NEW.id,
+    "SpiritsVerse".verse_meta_name(NEW.raw_user_meta_data, NEW.id),
+    new_handle,
+    "SpiritsVerse".verse_meta_dob(NEW.raw_user_meta_data),
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=' || NEW.id,
+    'Just another drink enthusiast.'
+  )
+  ON CONFLICT (id) DO NOTHING;
+
+  RETURN NEW;
+END;
+$verse_new_user$;
+
+CREATE OR REPLACE FUNCTION "SpiritsVerse".ensure_my_profile()
+RETURNS SETOF "SpiritsVerse".profiles
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = "SpiritsVerse", public, auth
+AS $verse_ensure_profile$
+DECLARE
+  uid UUID := auth.uid();
+  meta JSONB;
+  base_handle TEXT;
+  new_handle TEXT;
+  counter INT := 0;
+BEGIN
+  IF uid IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM "SpiritsVerse".profiles WHERE id = uid) THEN
+    RETURN QUERY SELECT * FROM "SpiritsVerse".profiles WHERE id = uid;
+    RETURN;
+  END IF;
+
+  SELECT raw_user_meta_data INTO meta FROM auth.users WHERE id = uid;
+
+  base_handle := "SpiritsVerse".verse_meta_handle(meta, uid);
+  new_handle := base_handle;
+
+  WHILE EXISTS (SELECT 1 FROM "SpiritsVerse".profiles WHERE handle = new_handle) LOOP
+    counter := counter + 1;
+    new_handle := base_handle || '_' || counter;
+  END LOOP;
+
+  INSERT INTO "SpiritsVerse".profiles (id, name, handle, date_of_birth, avatar, bio)
+  VALUES (
+    uid,
+    "SpiritsVerse".verse_meta_name(meta, uid),
+    new_handle,
+    "SpiritsVerse".verse_meta_dob(meta),
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=' || uid,
+    'Just another drink enthusiast.'
+  )
+  ON CONFLICT (id) DO NOTHING;
+
+  RETURN QUERY SELECT * FROM "SpiritsVerse".profiles WHERE id = uid;
+END;
+$verse_ensure_profile$;
+
+GRANT EXECUTE ON FUNCTION "SpiritsVerse".ensure_my_profile() TO authenticated;
+
+DROP TRIGGER IF EXISTS on_auth_user_created_spiritsverse ON auth.users;
+CREATE TRIGGER on_auth_user_created_spiritsverse
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION "SpiritsVerse".handle_new_user();
+
+-- Backfill all existing Verse / Cookbook users
+INSERT INTO "SpiritsVerse".profiles (id, name, handle, date_of_birth, avatar, bio)
+SELECT
+  au.id,
+  "SpiritsVerse".verse_meta_name(au.raw_user_meta_data, au.id),
+  "SpiritsVerse".verse_meta_handle(au.raw_user_meta_data, au.id) || '_' || substring(au.id::text from 1 for 4),
+  "SpiritsVerse".verse_meta_dob(au.raw_user_meta_data),
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=' || au.id,
+  'Just another drink enthusiast.'
+FROM auth.users au
+ON CONFLICT (id) DO NOTHING;
+
+-- -----------------------------------------------------------------------------
+-- STEP 8: Final permissions + API schema registration
+-- -----------------------------------------------------------------------------
+
+GRANT USAGE ON SCHEMA "SpiritsVerse" TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA "SpiritsVerse" TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA "SpiritsVerse" TO anon, authenticated, service_role;
+GRANT ALL ON ALL ROUTINES IN SCHEMA "SpiritsVerse" TO anon, authenticated, service_role;
+
+DO $register$
+BEGIN
+  PERFORM register_app_schema('SpiritsVerse');
+EXCEPTION
+  WHEN undefined_function THEN
+    RAISE NOTICE 'register_app_schema() not found — add SpiritsVerse to exposed schemas in Supabase Dashboard → Settings → API';
+END;
+$register$;
+
+-- Done!
+SELECT 'SpiritsVerse setup complete' AS status;
