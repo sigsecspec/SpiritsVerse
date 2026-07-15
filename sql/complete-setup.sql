@@ -221,7 +221,8 @@ CREATE TABLE "SpiritsVerse".safety_reports (
 );
 
 -- -----------------------------------------------------------------------------
--- STEP 4: Views + seed drinks
+-- STEP 4: Views + starter drinks
+-- For the full directory (1300+ drinks), run sql/seed-drinks.sql after this script.
 -- -----------------------------------------------------------------------------
 
 CREATE OR REPLACE VIEW "SpiritsVerse".spirits_with_stats AS
@@ -241,6 +242,8 @@ INSERT INTO "SpiritsVerse".spirits (name, category, description, abv, age, regio
 ('Hendrick''s Gin', 'Gin', 'Infused with cucumber and rose.', 41.4, 0, 'Scotland', '["cucumber", "floral", "citrus"]', 'William Grant', null, null),
 ('Negroni', 'Cocktail', 'A popular Italian cocktail.', 24, 0, 'Florence, Italy', '["bitter", "sweet", "herbal"]', 'Classic', 'Invented in 1919 by Count Camillo Negroni.', '1 oz Gin, 1 oz Campari, 1 oz Sweet Vermouth'),
 ('Aperol Spritz', 'Cocktail', 'Refreshing Italian wine-based cocktail.', 11, 0, 'Venice, Italy', '["orange", "bubbly", "refreshing"]', 'Classic', 'Became popular in the 1950s.', '3 parts Prosecco, 2 parts Aperol, 1 part Soda Water');
+
+-- NEXT: Run sql/seed-drinks.sql to load 1300+ drinks into the directory.
 
 -- -----------------------------------------------------------------------------
 -- STEP 5: Row Level Security

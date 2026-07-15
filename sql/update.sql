@@ -226,7 +226,7 @@ SELECT
 FROM
   "SpiritsVerse".spirits s;
 
--- SEED DATA
+-- SEED DATA (starter set — run sql/seed-drinks.sql for 1300+ drinks)
 INSERT INTO "SpiritsVerse".spirits (name, category, description, abv, age, region, tasting_notes, maker, history, recipe) VALUES
 ('Old Fashioned', 'Cocktail', 'The definition of a cocktail: spirits, sugar, water, and bitters.', 32, 0, 'Global', '["citrus", "oak", "sweet"]', 'Classic', 'Originated in the 19th century.', '2 oz Whiskey, 1 Sugar Cube, Angostura Bitters.'),
 ('Macallan 12', 'Whiskey', 'Sherry oak single malt.', 40, 12, 'Speyside, Scotland', '["dried fruit", "ginger", "wood smoke"]', 'The Macallan', null, null),
