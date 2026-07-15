@@ -34,7 +34,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
         const ageDifMs = Date.now() - birthDate.getTime();
         const ageDate = new Date(ageDifMs);
         if (Math.abs(ageDate.getUTCFullYear() - 1970) < 21) {
-            throw new Error("You must be 21+ to join Proof & Pour.");
+            throw new Error("You must be 21+ to join SpiritsVerse.");
         }
 
         const { error } = await auth.signUp(email, password, name, handle, dob);

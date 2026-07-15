@@ -248,7 +248,7 @@ export const api = {
       return [...new Set(blockedIds)];
   },
 
-  getPosts: async (viewType: 'GLOBAL_BAR' | 'TOAST_IT' | 'FRIENDS' | 'FAMILY' | 'GROUP', user?: User, groupId?: string): Promise<Post[]> => {
+  getPosts: async (viewType: 'GLOBAL_BAR' | 'TOAST_IT' | 'FRIENDS' | 'FAMILY' | 'GROUP' | 'LOCAL_PUB', user?: User, groupId?: string): Promise<Post[]> => {
     const { data: { session } } = await supabase.auth.getSession();
     const currentUserId = session?.user?.id;
     if (!currentUserId) return [];
@@ -269,6 +269,8 @@ export const api = {
         query = query.in('user_id', [...friendIds, user.id]).eq('visibility', 'FRIENDS');
     } else if (viewType === 'GROUP' && groupId) {
         query = query.eq('group_id', groupId);
+    } else if (viewType === 'LOCAL_PUB') {
+        query = query.eq('visibility', 'LOCAL_PUB');
     }
 
     let { data, error } = await query;
@@ -326,6 +328,10 @@ export const api = {
         posts = posts.filter(p => p.authorCity === user.city && p.authorState === user.state);
     } else if (viewType === 'TOAST_IT') {
         posts = [];
+    } else if (viewType === 'LOCAL_PUB' && user?.latitude && user?.longitude) {
+        const radius = user.distanceRadius || 25;
+        // Keep posts we can confirm are within range, plus any whose author location is unknown.
+        posts = posts.filter(p => p.distance === undefined || p.distance <= radius);
     }
 
     return posts;
@@ -471,6 +477,20 @@ export const api = {
       throw error;
     }
     return data;
+  },
+
+  joinGroup: async (groupId: string, userId: string) => {
+    const { data: group, error: fetchError } = await supabase.from('groups').select('members').eq('id', groupId).single();
+    if (fetchError || !group) throw fetchError || new Error('Group not found');
+
+    const members: string[] = group.members || [];
+    if (members.includes(userId)) return;
+
+    const { error } = await supabase.from('groups').update({ members: [...members, userId] }).eq('id', groupId);
+    if (error) {
+      console.error("Error joining group:", error);
+      throw error;
+    }
   },
 
   getGroupDetails: async (groupId: string): Promise<Group | null> => {

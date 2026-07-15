@@ -234,7 +234,25 @@ const ProfileCanvas: React.FC<ProfileCanvasProps> = ({ user, posts, isOwner, fri
                 </div>
              )}
             {activeTab === 'My Bar' && <TastedDrinksView drinks={tastedDrinks} />}
-            {activeTab === 'Favorites' && <div className="p-12 text-center text-[var(--text-muted)] border border-dashed border-[var(--border)] rounded-lg">Coming soon: Curate your top shelf favorites.</div>}
+            {activeTab === 'Favorites' && (
+                <div className="space-y-4">
+                    {(user.favDrinks && user.favDrinks.length > 0) ? (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            {user.favDrinks.map(drink => (
+                                <div key={drink} className="bg-[var(--bg-card)] border border-[var(--accent)]/30 rounded-lg p-4 text-center hover:border-[var(--accent)] transition-colors">
+                                    <span className="text-2xl mb-2 block">🍸</span>
+                                    <h4 className="font-bold font-serif text-sm">{drink}</h4>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="p-12 text-center text-[var(--text-muted)] border border-dashed border-[var(--border)] rounded-lg">
+                            <p className="font-serif italic">Your top shelf is empty.</p>
+                            <p className="text-sm mt-2">Add favorite drinks in Edit Profile, or tap Favorite on any drink in the Directory.</p>
+                        </div>
+                    )}
+                </div>
+            )}
           </main>
         </div>
       </div>

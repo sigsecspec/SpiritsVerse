@@ -7,6 +7,7 @@ import { Wine, Star, MessageSquare, Image as ImageIcon, Send, Upload, BookOpen, 
 interface DrinkProfilePageProps {
   drink: Drink;
   user: User;
+  refreshUser: () => Promise<void>;
 }
 
 type CommunityContext = 'HOME' | 'BAR';
@@ -132,7 +133,7 @@ const UploadPhoto: React.FC<{ spiritId: string; userId: string; onPhotoAdded: (p
     );
 };
 
-const DrinkProfilePage: React.FC<DrinkProfilePageProps> = ({ drink: initialDrink, user }) => {
+const DrinkProfilePage: React.FC<DrinkProfilePageProps> = ({ drink: initialDrink, user, refreshUser }) => {
   const [drink, setDrink] = useState<Drink>(initialDrink);
   const [activeTab, setActiveTab] = useState<'details' | 'photos' | 'reviews' | 'chat'>('details');
   const [context, setContext] = useState<CommunityContext>('BAR');
@@ -183,6 +184,17 @@ const DrinkProfilePage: React.FC<DrinkProfilePageProps> = ({ drink: initialDrink
   const handleToggleLog = () => {
       setDrink(prev => ({ ...prev, user_has_tasted: !prev.user_has_tasted }));
       api.toggleDrinkLog(user.id, drink.id);
+  };
+
+  const isFavorite = (user.favDrinks || []).includes(drink.name);
+
+  const handleToggleFavorite = async () => {
+      const current = user.favDrinks || [];
+      const updated = isFavorite
+          ? current.filter(d => d !== drink.name)
+          : [...current, drink.name];
+      await api.updateProfile(user.id, { favDrinks: updated });
+      await refreshUser();
   };
 
   const handleSendMessage = async () => {
@@ -395,8 +407,8 @@ const DrinkProfilePage: React.FC<DrinkProfilePageProps> = ({ drink: initialDrink
                 {drink.user_has_tasted ? <CheckCircle size={16} /> : <Wine size={16} />} 
                 {drink.user_has_tasted ? "I've had this" : "I've had this"}
             </button>
-            <button className="flex items-center gap-2 text-sm font-bold px-4 py-2.5 rounded-lg border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-hover)]">
-                <Heart size={16} /> Favorite
+            <button onClick={handleToggleFavorite} className={`flex items-center gap-2 text-sm font-bold px-4 py-2.5 rounded-lg border transition-all ${isFavorite ? 'bg-[var(--accent)]/10 border-[var(--accent)] text-[var(--accent)]' : 'border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-hover)]'}`}>
+                <Heart size={16} className={isFavorite ? 'fill-current' : ''} /> {isFavorite ? 'Favorited' : 'Favorite'}
             </button>
              <button className="flex items-center gap-2 text-sm font-bold px-4 py-2.5 rounded-lg border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-hover)]">
                 <Martini size={16} /> {context === 'HOME' ? 'I Made This' : 'Ordered This'}

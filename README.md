@@ -12,9 +12,24 @@ View your app in AI Studio: https://ai.studio/apps/461ef4f9-48cb-4b40-87c1-df7f8
 
 **Prerequisites:**  Node.js
 
-
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+2. Copy [.env.example](.env.example) to `.env.local` and fill in the values:
+   - `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — required. SpiritsVerse
+     talks to a shared "Verse" Supabase project (also used by Cookbook.io and StrainVerse). Ask a
+     project maintainer for the publishable key, or point these at your own Supabase project and
+     run [`sql/update.sql`](sql/update.sql) (idempotent) or [`sql.txt`](sql.txt) (full reset) in the
+     Supabase SQL editor to create the `SpiritsVerse` schema.
+   - `GEMINI_API_KEY` — optional. Powers AI features (Drink Cam image edits, Bar Wisdom, Toast of
+     the Day, AI theme generation, and PourUp content moderation). Without it, those features fall
+     back to static defaults instead of erroring.
 3. Run the app:
    `npm run dev`
+
+The app will throw a clear startup error if the Supabase environment variables are missing, since
+authentication and all data (posts, drinks, groups, etc.) depend on them.
+
+## Full Specification
+
+See [SPEC.md](SPEC.md) for the complete application specification — architecture, features,
+database schema, API reference, data flows, and deployment guide.

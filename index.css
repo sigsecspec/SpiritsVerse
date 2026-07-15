@@ -1,0 +1,4 @@
+/* Global stylesheet for SpiritsVerse.
+   Most theming lives in the inline <style> block in index.html (CSS variables, keyframes, etc.)
+   and in the Tailwind utility classes used throughout the components.
+   This file is kept as an extension point for any additional global styles. */

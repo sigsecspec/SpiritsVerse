@@ -323,7 +323,7 @@ const App: React.FC = () => {
 
         if (viewType) {
              setIsPostsLoading(true);
-             api.getPosts(viewType as any, user).then(fetchedPosts => {
+             api.getPosts(viewType, user).then(fetchedPosts => {
                 setPosts(fetchedPosts);
                 setIsPostsLoading(false);
              });
@@ -407,6 +407,7 @@ const App: React.FC = () => {
         }
         await api.createPost(user.id, content, visibility, imageUrl, user.latitude, user.longitude, undefined, meta?.spirit, meta?.buzzLevel, undefined, isToastIt, meta?.mood, meta?.lookingFor, meta?.duration ? new Date(Date.now() + meta.duration * 60000).toISOString() : undefined);
         refreshCurrentViewPosts();
+        setMyPosts(await api.getPostsForUser(user.id));
     };
     
     const handleCreateStory = async (imageFile: File, spiritName?: string, buzzLevel?: number) => {
@@ -489,7 +490,7 @@ const App: React.FC = () => {
                                 </button>
                                 <h1 className="text-center font-bold text-xl font-serif tracking-tight text-[var(--text-main)]">The Directory</h1>
                             </header>
-                            <DrinkProfilePage drink={selectedDrink} user={user} />
+                            <DrinkProfilePage drink={selectedDrink} user={user} refreshUser={refreshUser} />
                          </>
                     )}
                     
@@ -564,12 +565,13 @@ const App: React.FC = () => {
             <RightSidebar user={user} />
             
             {/* Mobile Nav - Simplified */}
-            <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-[var(--bg-main)] border-t border-[var(--border)] flex justify-around p-3 z-40 pb-safe">
-                 <button onClick={() => setCurrentView(AppView.DRINK_DIRECTORY)} className={`p-2 rounded-full ${currentView === AppView.DRINK_DIRECTORY ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}><BookOpen size={24} /></button>
-                 <button onClick={() => setCurrentView(AppView.SIP_STREAM)} className={`p-2 rounded-full ${currentView === AppView.SIP_STREAM ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}><Wine size={24} /></button>
-                 <button onClick={() => setCurrentView(AppView.LOCAL_PUB)} className={`p-2 rounded-full ${currentView === AppView.LOCAL_PUB ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}><MapPin size={24} /></button>
-                 <button onClick={() => setCurrentView(AppView.POUR_UP)} className={`p-2 rounded-full ${currentView === AppView.POUR_UP ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}><Flame size={24} /></button>
-                 <button onClick={() => setCurrentView(AppView.PROFILE)} className={`p-2 rounded-full ${currentView === AppView.PROFILE ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}><UserIcon size={24} /></button>
+            <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-[var(--bg-main)] border-t border-[var(--border)] flex justify-around p-2 z-40 pb-safe">
+                 <button onClick={() => setCurrentView(AppView.DRINK_DIRECTORY)} className={`p-2 rounded-full ${currentView === AppView.DRINK_DIRECTORY ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`} title="Directory"><BookOpen size={22} /></button>
+                 <button onClick={() => setCurrentView(AppView.SIP_STREAM)} className={`p-2 rounded-full ${currentView === AppView.SIP_STREAM ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`} title="SipStream"><Wine size={22} /></button>
+                 <button onClick={() => setCurrentView(AppView.LOCAL_PUB)} className={`p-2 rounded-full ${currentView === AppView.LOCAL_PUB ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`} title="Local Pub"><MapPin size={22} /></button>
+                 <button onClick={() => setCurrentView(AppView.BAR_SESH)} className={`p-2 rounded-full ${currentView === AppView.BAR_SESH ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`} title="BarSesh"><Users size={22} /></button>
+                 <button onClick={() => setCurrentView(AppView.POUR_UP)} className={`p-2 rounded-full ${currentView === AppView.POUR_UP ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`} title="PourUp"><Flame size={22} /></button>
+                 <button onClick={() => setCurrentView(AppView.PROFILE)} className={`p-2 rounded-full ${currentView === AppView.PROFILE ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`} title="My Bar"><UserIcon size={22} /></button>
             </nav>
         </div>
     );
