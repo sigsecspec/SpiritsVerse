@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Drink } from '../types';
 import { api } from '../services/supabaseClient';
-import { Search, Wine, Star, Loader2, Award, BookOpen, GlassWater } from 'lucide-react';
+import { Search, Wine, Star, Loader2, BookOpen } from 'lucide-react';
 
 interface DrinkVerseDirectoryProps {
   onDrinkSelect: (drink: Drink) => void;
@@ -46,15 +46,6 @@ const DrinkVerseDirectory: React.FC<DrinkVerseDirectoryProps> = ({ onDrinkSelect
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'All' | 'Cocktails' | 'Spirits' | 'Beer' | 'Wine' | 'Mocktails'>('All');
   const [searchTerm, setSearchTerm] = useState('');
-
-  const trendingDrinks = useMemo(() => {
-    return [...drinks].sort((a, b) => (b.review_count || 0) - (a.review_count || 0)).slice(0, 5);
-  }, [drinks]);
-  
-  const seasonalDrinks = useMemo(() => {
-      // Mock seasonal logic (random selection for now)
-      return [...drinks].sort(() => 0.5 - Math.random()).slice(0, 5);
-  }, [drinks]);
 
   useEffect(() => {
     const fetchDrinks = async () => {
@@ -137,34 +128,6 @@ const DrinkVerseDirectory: React.FC<DrinkVerseDirectoryProps> = ({ onDrinkSelect
         </div>
       ) : (
         <>
-            {/* Featured Sections */}
-            {!searchTerm && (
-                <div className="space-y-8 mb-8">
-                    <div>
-                        <h2 className="text-lg font-bold flex items-center gap-2 mb-4 font-serif text-[var(--text-secondary)]"><Award size={18} className="text-[var(--accent)]" /> Trending Drinks</h2>
-                        <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
-                            {trendingDrinks.map(drink => (
-                                <div key={drink.id} className="min-w-[160px] w-[160px]">
-                                    <DrinkCard drink={drink} onSelect={() => onDrinkSelect(drink)} />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                     <div>
-                        <h2 className="text-lg font-bold flex items-center gap-2 mb-4 font-serif text-[var(--text-secondary)]"><GlassWater size={18} className="text-[var(--accent)]" /> Seasonal Sips</h2>
-                        <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
-                            {seasonalDrinks.map(drink => (
-                                <div key={drink.id} className="min-w-[160px] w-[160px]">
-                                    <DrinkCard drink={drink} onSelect={() => onDrinkSelect(drink)} />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
-            
-            {/* Filter and All Drinks */}
             <div className="my-6">
                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
                     <h2 className="text-lg font-bold flex items-center gap-2 font-serif text-[var(--text-secondary)]">Browse Collection</h2>

@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { User, Widget, Post, Drink, ReactionType } from '../types';
-import { MessageSquare, Heart, Share2, ThumbsDown, Flame, FileText, Users, MapPin, Settings, ThumbsUp, Wine, GlassWater, Award } from 'lucide-react';
+import { User, Post, Drink, ReactionType } from '../types';
+import { MessageSquare, FileText, Users, MapPin, Settings, Wine, GlassWater, Award } from 'lucide-react';
 import ProfileSettingsModal from './ProfileSettingsModal';
 import { api } from '../services/supabaseClient';
-import ProfileCustomization from './ProfileCustomization';
 
 interface ProfileCanvasProps {
   user: User;
@@ -14,42 +13,6 @@ interface ProfileCanvasProps {
   refreshUser: () => Promise<void>;
   onReaction: (postId: string, type: ReactionType) => void;
 }
-
-const WidgetRenderer: React.FC<{ widget: Widget }> = ({ widget }) => {
-  switch (widget.type) {
-    case 'YOUTUBE':
-      const videoId = widget.content.split('v=')[1] || widget.content;
-      return (
-        <div className="ys-widget mb-4 overflow-hidden rounded-lg shadow-lg border border-[var(--border)]">
-          {widget.title && <h4 className="ys-widget-title text-sm font-bold mb-1 p-2 bg-[var(--bg-input)]">{widget.title}</h4>}
-          <iframe
-            className="w-full aspect-video"
-            src={`https://www.youtube.com/embed/${videoId}`}
-            title="YouTube video player"
-            frameBorder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          ></iframe>
-        </div>
-      );
-    case 'IMAGE':
-      return (
-        <div className="ys-widget mb-4 border border-[var(--border)] rounded-lg overflow-hidden">
-           {widget.title && <h4 className="ys-widget-title text-sm font-bold mb-1 p-2 bg-[var(--bg-input)]">{widget.title}</h4>}
-          <img src={widget.content} alt="Widget" className="w-full object-cover" />
-        </div>
-      );
-    case 'TEXT':
-      return (
-        <div className="ys-widget mb-4 p-4 bg-[var(--bg-input)] rounded-lg border border-[var(--border)]">
-           {widget.title && <h4 className="ys-widget-title text-sm font-bold mb-2 text-[var(--accent)] uppercase tracking-wider">{widget.title}</h4>}
-          <p className="text-sm font-serif italic">{widget.content}</p>
-        </div>
-      );
-    default:
-      return null;
-  }
-};
 
 const StatCard: React.FC<{ icon: React.ElementType; label: string; value: string | number; color: string; }> = ({ icon: Icon, label, value, color }) => (
     <div className="flex-1 bg-[var(--bg-card)] p-4 rounded-sm border border-[var(--border)] flex items-center gap-4 hover:border-[var(--accent)] transition-colors">
@@ -98,7 +61,6 @@ const ProfileCanvas: React.FC<ProfileCanvasProps> = ({ user, posts, isOwner, fri
   return (
     <div className="relative min-h-screen w-full bg-[var(--bg-main)]">
       {isSettingsOpen && <ProfileSettingsModal user={user} onSave={handleSaveSettings} onClose={() => setIsSettingsOpen(false)} />}
-      <ProfileCustomization user={user} isOwner={isOwner} refreshUser={refreshUser} />
 
       <div className="ys-profile-root p-4 md:p-8 max-w-7xl mx-auto">
         
@@ -158,7 +120,6 @@ const ProfileCanvas: React.FC<ProfileCanvasProps> = ({ user, posts, isOwner, fri
         {/* Layout Grid */}
         <div className="ys-layout-grid grid grid-cols-1 lg:grid-cols-12 gap-8">
           
-          {/* Sidebar (Widgets) */}
           <aside className="ys-sidebar lg:col-span-4 space-y-6">
             <div className="bg-[var(--bg-card)] p-6 rounded-lg border border-[var(--border)]">
                 <h3 className="text-sm font-bold mb-4 border-b border-[var(--border)] pb-2 uppercase tracking-widest text-[var(--text-muted)]">Details</h3>
@@ -184,11 +145,6 @@ const ProfileCanvas: React.FC<ProfileCanvasProps> = ({ user, posts, isOwner, fri
                     )}
                 </div>
             </div>
-            
-            {/* User Widgets */}
-            {(user.widgets || []).map(w => (
-              <WidgetRenderer key={w.id} widget={w} />
-            ))}
           </aside>
 
           {/* Main Feed */}

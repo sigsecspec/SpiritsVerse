@@ -1,16 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { PostVisibility } from '../types';
-import { Send, Image as ImageIcon, XCircle, Wine, GlassWater, Rocket, Wand2, Plus, Flame, Clock, Users, AlertTriangle, Loader2 } from 'lucide-react';
+import { Send, Image as ImageIcon, XCircle, Wine, GlassWater, Plus, Flame, Clock, Users, AlertTriangle, Loader2 } from 'lucide-react';
 
 const CreatePostModal: React.FC<{
   onClose: () => void;
   onPost: (content: string, visibility: PostVisibility, image?: File | null, meta?: any, isToastIt?: boolean) => void;
-  onBarLens: (file: File) => void;
   isLocal?: boolean;
-  editedImage: File | null;
-  onClearEditedImage: () => void;
   isToastItPost?: boolean;
-}> = ({ onClose, onPost, onBarLens, isLocal = false, editedImage, onClearEditedImage, isToastItPost = false }) => {
+}> = ({ onClose, onPost, isLocal = false, isToastItPost = false }) => {
   const [content, setContent] = useState('');
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -44,18 +41,6 @@ const CreatePostModal: React.FC<{
 
   const moods = ['😊', '🥴', '🥳', '😎', '😴', '🤢'];
   
-
-  useEffect(() => {
-    if (editedImage) {
-        setImage(editedImage);
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            setImagePreview(reader.result as string);
-        };
-        reader.readAsDataURL(editedImage);
-        onClearEditedImage();
-    }
-  }, [editedImage, onClearEditedImage]);
 
   const handlePost = async () => {
     setIsLoading(true);
@@ -158,14 +143,10 @@ const CreatePostModal: React.FC<{
 
 
                 {imagePreview && (
-                    <div className="relative p-2 group">
+                    <div className="relative p-2">
                         <img src={imagePreview} className="rounded-lg max-h-60 w-auto border border-[var(--border)]" alt="Post preview" />
                         <button onClick={() => { setImage(null); setImagePreview(null); }} className="absolute top-4 right-4 bg-black/70 p-1 rounded-full text-white hover:scale-110 transition-transform">
                             <XCircle size={20} />
-                        </button>
-                         <button onClick={() => image && onBarLens(image)} className="absolute bottom-4 right-4 bg-black/70 p-2 rounded-full text-white hover:bg-[var(--accent)] transition-all flex items-center gap-1.5 text-xs font-bold hover:scale-110 border border-[var(--accent)]/50">
-                            <Wand2 size={16} />
-                            <span className="hidden group-hover:inline">Drink Cam</span>
                         </button>
                     </div>
                 )}

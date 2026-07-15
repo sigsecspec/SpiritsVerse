@@ -5,8 +5,7 @@ const ConfigSetup: React.FC = () => {
   const [copied, setCopied] = React.useState(false);
 
   const envTemplate = `NEXT_PUBLIC_SUPABASE_URL=https://vxahlxhrmypxxkrudqbd.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_key_from_supabase_dashboard
-GEMINI_API_KEY=`;
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_key_from_supabase_dashboard`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(envTemplate);

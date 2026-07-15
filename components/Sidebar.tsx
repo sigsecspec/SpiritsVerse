@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { AppView, User } from '../types';
-import { BookOpen, Wine, Users, User as UserIcon, LogOut, Lightbulb, Flame, MapPin, Download } from 'lucide-react';
+import { BookOpen, Wine, Users, User as UserIcon, LogOut, Flame, MapPin, Download } from 'lucide-react';
 import Logo from './Logo';
 import { isStandaloneMode, requestInstallBanner } from '../utils/pwaInstall';
 
@@ -10,7 +10,6 @@ interface SidebarProps {
   setView: (view: AppView) => void;
   user: User;
   onSignOut: () => void;
-  onWisdomClick: () => void;
   userAge: number | null;
 }
 
@@ -38,7 +37,7 @@ const NavLink: React.FC<{ icon: React.ElementType, label: string, isActive: bool
     </button>
 );
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, user, onSignOut, onWisdomClick, userAge }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, user, onSignOut, userAge }) => {
   const visibleNavItems = navItems.filter(item => {
     if (item.ageGate) {
         return userAge !== null && userAge >= 21;
@@ -65,24 +64,17 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, user, onSignOut
             ))}
         </nav>
 
-        <div className="mt-4 border-t border-[var(--border)] pt-4 space-y-2">
-             <button
-                onClick={onWisdomClick}
-                className="flex items-center w-full gap-3 px-4 py-2.5 rounded-lg text-left transition-colors text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-white"
+        {!isStandaloneMode() && (
+          <div className="mt-4 border-t border-[var(--border)] pt-4">
+            <button
+              onClick={requestInstallBanner}
+              className="flex items-center w-full gap-3 px-4 py-2.5 rounded-lg text-left transition-colors text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-white"
             >
-                <Lightbulb size={20} />
-                <span>Bar Wisdom</span>
+              <Download size={20} />
+              <span>Install App</span>
             </button>
-            {!isStandaloneMode() && (
-              <button
-                onClick={requestInstallBanner}
-                className="flex items-center w-full gap-3 px-4 py-2.5 rounded-lg text-left transition-colors text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-white"
-              >
-                <Download size={20} />
-                <span>Install App</span>
-              </button>
-            )}
-        </div>
+          </div>
+        )}
       </div>
       
       <div className="border-t border-[var(--border)] pt-4">

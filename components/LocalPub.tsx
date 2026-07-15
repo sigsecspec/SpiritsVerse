@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, FC, useEffect } from 'react';
 import { User, Post, PostVisibility, ReactionType, Story, SafetyReport } from '../types';
-import { Send, Image as ImageIcon, XCircle, Wine, MapPin, Plus, Wand2, GlassWater, Beer, Calendar, BarChart2, ShieldCheck, AlertTriangle, Loader2 } from 'lucide-react';
+import { Send, Image as ImageIcon, XCircle, Wine, MapPin, Plus, GlassWater, Beer, Calendar, BarChart2, ShieldCheck, AlertTriangle, Loader2 } from 'lucide-react';
 import CreatePostModal from './CreatePostModal';
 import { DrinkStories, SkeletonPost } from './common';
 import { api } from '../services/supabaseClient';
@@ -48,7 +48,7 @@ const TrendsTab: FC<{ posts: Post[] }> = ({ posts }) => {
                 </div>
                 <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-4 text-center">
                     <p className="text-2xl font-bold text-[var(--accent)]">{stats.topSpirits.length}</p>
-                    <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider mt-1">Drinks Trending</p>
+                    <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider mt-1">Spirit Types</p>
                 </div>
             </div>
             {stats.topSpirits.length > 0 && (
@@ -219,7 +219,7 @@ const EventsTab: FC<{ posts: Post[] }> = ({ posts }) => {
     );
 };
 
-const LocalPub: React.FC<{ user: User, posts: Post[], onReaction: (postId: string, type: ReactionType) => void, onPost: (content: string, visibility: PostVisibility, image?: File | null, meta?: any, isToastIt?: boolean) => void, stories: Story[], isLoading: boolean, onBarLens: (file: File) => void, editedImage: File | null, onClearEditedImage: () => void }> = ({ user, posts, onReaction, onPost, stories, isLoading, onBarLens, editedImage, onClearEditedImage }) => {
+const LocalPub: React.FC<{ user: User, posts: Post[], onReaction: (postId: string, type: ReactionType) => void, onPost: (content: string, visibility: PostVisibility, image?: File | null, meta?: any, isToastIt?: boolean) => void, stories: Story[], isLoading: boolean }> = ({ user, posts, onReaction, onPost, stories, isLoading }) => {
     const [activeTab, setActiveTab] = useState<'The Pub' | 'Trends' | 'Bars' | 'Events'>('The Pub');
     const [toastItOnly, setToastItOnly] = useState(false);
     
@@ -268,7 +268,7 @@ const LocalPub: React.FC<{ user: User, posts: Post[], onReaction: (postId: strin
 
     const renderFeed = () => (
         <div className="pb-24 lg:pb-6 relative">
-            {isPostModalOpen && <CreatePostModal onClose={() => setPostModalOpen(false)} onPost={onPost} onBarLens={onBarLens} isLocal editedImage={editedImage} onClearEditedImage={onClearEditedImage} />}
+            {isPostModalOpen && <CreatePostModal onClose={() => setPostModalOpen(false)} onPost={onPost} isLocal />}
             <DrinkStories stories={stories} />
 
              {/* Inline Post Creator */}
@@ -276,12 +276,9 @@ const LocalPub: React.FC<{ user: User, posts: Post[], onReaction: (postId: strin
                 <div className="bg-[var(--bg-card)] p-4 rounded-xl border border-[var(--border)] shadow-md">
                     <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="What's pouring at your local spot?" className="w-full bg-transparent p-2 focus:outline-none resize-none text-lg placeholder:text-[var(--text-muted)] font-serif" rows={2}/>
                     {imagePreview && (
-                        <div className="relative p-2 group">
+                        <div className="relative p-2">
                             <img src={imagePreview} className="rounded-lg max-h-60 w-auto" alt="Post preview" />
                             <button onClick={() => { setImage(null); setImagePreview(null); }} className="absolute top-4 right-4 bg-black/70 p-1 rounded-full text-white hover:scale-110 transition-transform"><XCircle size={20} /></button>
-                             <button onClick={() => onBarLens(image!)} className="absolute bottom-4 right-4 bg-black/70 p-2 rounded-full text-white hover:bg-[var(--accent)] transition-all flex items-center gap-1.5 text-xs font-bold hover:scale-110">
-                                <Wand2 size={16} /><span className="hidden group-hover:inline">Bar Lens</span>
-                            </button>
                         </div>
                     )}
                     <div className="flex justify-between items-center pt-2 mt-2 border-t border-[var(--border)]">
