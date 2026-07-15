@@ -1,6 +1,14 @@
 -- SpiritsVerse schema setup for the shared Verse Supabase project.
--- Idempotent: safe to run on the shared DB when the schema may already exist.
--- For a full reset, use sql.txt (includes DROP SCHEMA) on a fresh database only.
+-- Idempotent: safe to re-run when SpiritsVerse schema already exists.
+--
+-- USE ONE OF:
+--   sql/complete-setup.sql  — fresh install (drops legacy "spirits" + recreates SpiritsVerse)
+--   sql/update.sql          — this file (additive / idempotent, keeps existing data)
+--   sql/shared-auth.sql     — auth functions + backfill only (schema must exist)
+--
+-- Legacy cleanup (uncomment once if you still have the old "spirits" schema):
+-- DROP SCHEMA IF EXISTS spirits CASCADE;
+-- DROP SCHEMA IF EXISTS "spirits" CASCADE;
 
 CREATE SCHEMA IF NOT EXISTS "SpiritsVerse";
 
@@ -309,9 +317,14 @@ BEGIN
   END IF;
 END $$;
 
--- 10. AUTOMATION & TRIGGERS (Pull Profiles from Auth — shared Verse auth.users)
+-- 10. AUTOMATION & TRIGGERS (shared Verse auth — Cookbook, StrainVerse, SpiritsVerse)
+-- Uses named dollar-quotes ($tag$) so Supabase SQL Editor paste does not break.
+
 CREATE OR REPLACE FUNCTION "SpiritsVerse".verse_meta_handle(meta JSONB, user_id UUID)
-RETURNS TEXT AS $$
+RETURNS TEXT
+LANGUAGE plpgsql
+IMMUTABLE
+AS $verse_handle$
 DECLARE
   base_handle TEXT;
 BEGIN
@@ -323,29 +336,35 @@ BEGIN
     split_part((SELECT email FROM auth.users WHERE id = user_id), '@', 1),
     'user_' || substring(user_id::text from 1 for 8)
   ), '^@', ''));
-  base_handle := regexp_replace(base_handle, '\s+', '', 'g');
+  base_handle := regexp_replace(base_handle, '[^a-z0-9_]', '', 'g');
   IF base_handle = '' THEN
     base_handle := 'user_' || substring(user_id::text from 1 for 8);
   END IF;
-  RETURN left(base_handle, 32);
+  RETURN left(base_handle, 24);
 END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+$verse_handle$;
 
 CREATE OR REPLACE FUNCTION "SpiritsVerse".verse_meta_name(meta JSONB, user_id UUID)
-RETURNS TEXT AS $$
+RETURNS TEXT
+LANGUAGE plpgsql
+STABLE
+AS $verse_name$
 BEGIN
-  RETURN COALESCE(
+  RETURN left(COALESCE(
     meta->>'name',
     meta->>'full_name',
     meta->>'display_name',
     split_part((SELECT email FROM auth.users WHERE id = user_id), '@', 1),
     'User'
-  );
+  ), 80);
 END;
-$$ LANGUAGE plpgsql STABLE;
+$verse_name$;
 
 CREATE OR REPLACE FUNCTION "SpiritsVerse".verse_meta_dob(meta JSONB)
-RETURNS DATE AS $$
+RETURNS DATE
+LANGUAGE plpgsql
+IMMUTABLE
+AS $verse_dob$
 BEGIN
   RETURN COALESCE(
     NULLIF(meta->>'date_of_birth', '')::DATE,
@@ -353,10 +372,14 @@ BEGIN
     NULLIF(meta->>'birthday', '')::DATE
   );
 END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+$verse_dob$;
 
 CREATE OR REPLACE FUNCTION "SpiritsVerse".handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = "SpiritsVerse", public, auth
+AS $verse_new_user$
 DECLARE
   base_handle TEXT;
   new_handle TEXT;
@@ -367,7 +390,7 @@ BEGIN
 
   WHILE EXISTS (SELECT 1 FROM "SpiritsVerse".profiles WHERE handle = new_handle AND id <> NEW.id) LOOP
     counter := counter + 1;
-    new_handle := base_handle || '_' || counter;
+    new_handle := left(base_handle || '_' || counter, 24);
   END LOOP;
 
   INSERT INTO "SpiritsVerse".profiles (id, name, handle, date_of_birth, avatar, bio)
@@ -380,17 +403,17 @@ BEGIN
     'Just another drink enthusiast.'
   )
   ON CONFLICT (id) DO NOTHING;
+
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = "SpiritsVerse", public, auth;
+$verse_new_user$;
 
--- Provision SpiritsVerse profile for an existing shared Verse auth user (e.g. signed up on Cookbook.io)
 CREATE OR REPLACE FUNCTION "SpiritsVerse".ensure_my_profile()
 RETURNS SETOF "SpiritsVerse".profiles
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = "SpiritsVerse", public, auth
-AS $$
+AS $verse_ensure_profile$
 DECLARE
   uid UUID := auth.uid();
   meta JSONB;
@@ -408,12 +431,13 @@ BEGIN
   END IF;
 
   SELECT raw_user_meta_data INTO meta FROM auth.users WHERE id = uid;
+
   base_handle := "SpiritsVerse".verse_meta_handle(meta, uid);
   new_handle := base_handle;
 
   WHILE EXISTS (SELECT 1 FROM "SpiritsVerse".profiles WHERE handle = new_handle) LOOP
     counter := counter + 1;
-    new_handle := base_handle || '_' || counter;
+    new_handle := left(base_handle || '_' || counter, 24);
   END LOOP;
 
   INSERT INTO "SpiritsVerse".profiles (id, name, handle, date_of_birth, avatar, bio)
@@ -429,22 +453,22 @@ BEGIN
 
   RETURN QUERY SELECT * FROM "SpiritsVerse".profiles WHERE id = uid;
 END;
-$$;
+$verse_ensure_profile$;
 
 GRANT EXECUTE ON FUNCTION "SpiritsVerse".ensure_my_profile() TO authenticated;
 
--- App-specific trigger only — do NOT drop other Verse app triggers on auth.users
 DROP TRIGGER IF EXISTS on_auth_user_created_spiritsverse ON auth.users;
 CREATE TRIGGER on_auth_user_created_spiritsverse
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION "SpiritsVerse".handle_new_user();
+  FOR EACH ROW
+  EXECUTE FUNCTION "SpiritsVerse".handle_new_user();
 
--- Backfill existing shared Verse auth users into SpiritsVerse profiles
+-- Backfill Cookbook / StrainVerse / other Verse users into SpiritsVerse.profiles
 INSERT INTO "SpiritsVerse".profiles (id, name, handle, date_of_birth, avatar, bio)
 SELECT
   au.id,
   "SpiritsVerse".verse_meta_name(au.raw_user_meta_data, au.id),
-  "SpiritsVerse".verse_meta_handle(au.raw_user_meta_data, au.id),
+  left("SpiritsVerse".verse_meta_handle(au.raw_user_meta_data, au.id) || '_' || substring(au.id::text from 1 for 4), 24),
   "SpiritsVerse".verse_meta_dob(au.raw_user_meta_data),
   'https://api.dicebear.com/7.x/avataaars/svg?seed=' || au.id,
   'Just another drink enthusiast.'
@@ -458,5 +482,11 @@ GRANT ALL ON ALL TABLES IN SCHEMA "SpiritsVerse" TO anon, authenticated, service
 GRANT ALL ON ALL SEQUENCES IN SCHEMA "SpiritsVerse" TO anon, authenticated, service_role;
 GRANT ALL ON ALL ROUTINES IN SCHEMA "SpiritsVerse" TO anon, authenticated, service_role;
 
--- Register schema with shared Verse Supabase project
-SELECT register_app_schema('SpiritsVerse');
+DO $register$
+BEGIN
+  PERFORM public.register_app_schema('SpiritsVerse');
+EXCEPTION
+  WHEN undefined_function THEN
+    RAISE NOTICE 'register_app_schema() not found — add SpiritsVerse under Supabase Dashboard → Settings → API → Exposed schemas';
+END;
+$register$;

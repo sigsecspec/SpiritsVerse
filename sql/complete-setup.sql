@@ -485,10 +485,10 @@ GRANT ALL ON ALL ROUTINES IN SCHEMA "SpiritsVerse" TO anon, authenticated, servi
 
 DO $register$
 BEGIN
-  PERFORM register_app_schema('SpiritsVerse');
+  PERFORM public.register_app_schema('SpiritsVerse');
 EXCEPTION
   WHEN undefined_function THEN
-    RAISE NOTICE 'register_app_schema() not found — add SpiritsVerse to exposed schemas in Supabase Dashboard → Settings → API';
+    RAISE NOTICE 'register_app_schema() not found — add SpiritsVerse under Supabase Dashboard → Settings → API → Exposed schemas';
 END;
 $register$;
 
