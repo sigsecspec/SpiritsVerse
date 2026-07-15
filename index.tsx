@@ -5,8 +5,16 @@ import App from './App';
 import ConfigSetup from './components/ConfigSetup';
 import PwaInstallPrompt from './components/PwaInstallPrompt';
 import { isSupabaseConfigured } from './services/supabaseClient';
+import { initPwaInstallCapture } from './utils/pwaInstall';
 
-registerSW({ immediate: true });
+initPwaInstallCapture();
+
+registerSW({
+  immediate: true,
+  onRegisterError(error) {
+    console.error('Service worker registration failed:', error);
+  },
+});
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

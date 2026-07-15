@@ -15,14 +15,17 @@ export default defineConfig(({ mode }) => {
         react(),
         VitePWA({
           registerType: 'autoUpdate',
-          includeAssets: ['icon.svg', 'favicon-32x32.png', 'apple-touch-icon.png'],
+          injectRegister: false,
+          includeAssets: ['icon.svg', 'favicon-32x32.png', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
           manifest: {
+            id: '/',
             name: 'SpiritsVerse',
             short_name: 'SpiritsVerse',
             description: 'The social network for drink lovers. Explore cocktails, connect with drinking buddies, and share your digital bar.',
             theme_color: '#050505',
             background_color: '#050505',
             display: 'standalone',
+            display_override: ['standalone', 'browser'],
             orientation: 'portrait',
             scope: '/',
             start_url: '/',
@@ -32,11 +35,13 @@ export default defineConfig(({ mode }) => {
                 src: 'pwa-192x192.png',
                 sizes: '192x192',
                 type: 'image/png',
+                purpose: 'any',
               },
               {
                 src: 'pwa-512x512.png',
                 sizes: '512x512',
                 type: 'image/png',
+                purpose: 'any',
               },
               {
                 src: 'pwa-512x512.png',
@@ -47,11 +52,13 @@ export default defineConfig(({ mode }) => {
             ],
           },
           workbox: {
-            globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,woff}'],
-            navigateFallback: 'index.html',
+            globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,woff,webmanifest}'],
+            navigateFallback: '/index.html',
+            navigateFallbackDenylist: [/^\/api/],
           },
           devOptions: {
             enabled: true,
+            navigateFallback: '/index.html',
           },
         }),
       ],

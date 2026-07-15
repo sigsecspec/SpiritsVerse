@@ -1,94 +1,122 @@
 import { useState, useEffect, useCallback } from 'react';
+import {
+  canUseNativeInstall,
+  clearDeferredInstallPrompt,
+  getDeferredInstallPrompt,
+  isIOS,
+  isStandaloneMode,
+  onAppInstalled,
+  onInstallBannerRequested,
+  onInstallPromptAvailable,
+  triggerNativeInstall,
+} from '../utils/pwaInstall';
 
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-}
-
-function isStandalone(): boolean {
-  return (
-    window.matchMedia('(display-mode: standalone)').matches ||
-    (window.navigator as Navigator & { standalone?: boolean }).standalone === true
-  );
-}
-
-function isIOS(): boolean {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as Window & { MSStream?: unknown }).MSStream;
-}
-
-function isMobileBrowser(): boolean {
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-}
-
-const DISMISS_KEY = 'spiritsverse-pwa-dismissed';
+const DISMISS_KEY = 'spiritsverse-pwa-dismissed-v2';
 
 export function usePwaInstall() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isInstalled, setIsInstalled] = useState(isStandalone);
+  const [installReady, setInstallReady] = useState(() => canUseNativeInstall());
+  const [isInstalled, setIsInstalled] = useState(isStandaloneMode);
   const [showIOSGuide, setShowIOSGuide] = useState(false);
+  const [showManualGuide, setShowManualGuide] = useState(false);
+  const [isInstalling, setIsInstalling] = useState(false);
   const [dismissed, setDismissed] = useState(() => localStorage.getItem(DISMISS_KEY) === '1');
+  const [bannerVisible, setBannerVisible] = useState(false);
 
   useEffect(() => {
-    if (isStandalone()) {
+    if (isStandaloneMode()) {
       setIsInstalled(true);
       return;
     }
 
-    const onBeforeInstall = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-    };
+    const syncPrompt = () => setInstallReady(canUseNativeInstall());
 
-    const onInstalled = () => {
+    const unsubPrompt = onInstallPromptAvailable(() => {
+      syncPrompt();
+      setShowManualGuide(false);
+      if (!dismissed) setBannerVisible(true);
+    });
+
+    const unsubInstalled = onAppInstalled(() => {
       setIsInstalled(true);
-      setDeferredPrompt(null);
-      setShowIOSGuide(false);
-    };
+      setInstallReady(false);
+      setBannerVisible(false);
+      clearDeferredInstallPrompt();
+    });
 
-    window.addEventListener('beforeinstallprompt', onBeforeInstall);
-    window.addEventListener('appinstalled', onInstalled);
+    const unsubOpen = onInstallBannerRequested(() => {
+      localStorage.removeItem(DISMISS_KEY);
+      setDismissed(false);
+      setBannerVisible(true);
+      if (isIOS()) setShowIOSGuide(true);
+      if (canUseNativeInstall()) setShowManualGuide(false);
+    });
 
-    // iOS has no beforeinstallprompt — offer manual Add to Home Screen guide
-    if (isIOS() && !isStandalone() && !dismissed) {
-      const timer = setTimeout(() => setShowIOSGuide(true), 3000);
-      return () => {
-        clearTimeout(timer);
-        window.removeEventListener('beforeinstallprompt', onBeforeInstall);
-        window.removeEventListener('appinstalled', onInstalled);
-      };
+    // Show banner after brief delay on mobile / when native prompt is already available
+    let timer: number | undefined;
+    if (!dismissed && !isStandaloneMode()) {
+      timer = window.setTimeout(() => {
+        if (canUseNativeInstall() || isIOS()) {
+          setBannerVisible(true);
+          if (isIOS()) setShowIOSGuide(true);
+        }
+      }, 2000);
     }
 
+    syncPrompt();
+
     return () => {
-      window.removeEventListener('beforeinstallprompt', onBeforeInstall);
-      window.removeEventListener('appinstalled', onInstalled);
+      unsubPrompt();
+      unsubInstalled();
+      unsubOpen();
+      if (timer) window.clearTimeout(timer);
     };
   }, [dismissed]);
 
-  const canInstall = Boolean(deferredPrompt) && !isInstalled;
-  const showPrompt = (canInstall || showIOSGuide) && !dismissed && !isInstalled;
+  const canInstall = installReady && !isInstalled;
+  const showPrompt = bannerVisible && !dismissed && !isInstalled;
 
   const install = useCallback(async () => {
-    if (!deferredPrompt) return;
-    await deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setDeferredPrompt(null);
+    if (isInstalled) return;
+
+    if (isIOS() || !getDeferredInstallPrompt()) {
+      setShowIOSGuide(isIOS());
+      setShowManualGuide(!isIOS());
+      setBannerVisible(true);
+      return;
     }
-  }, [deferredPrompt]);
+
+    setIsInstalling(true);
+    try {
+      const outcome = await triggerNativeInstall();
+      setInstallReady(canUseNativeInstall());
+      if (outcome === 'accepted') {
+        setBannerVisible(false);
+      } else if (outcome === 'unavailable') {
+        setShowManualGuide(true);
+      }
+    } catch (error) {
+      console.error('PWA install failed:', error);
+      setShowManualGuide(true);
+    } finally {
+      setIsInstalling(false);
+    }
+  }, [isInstalled]);
 
   const dismiss = useCallback(() => {
     localStorage.setItem(DISMISS_KEY, '1');
     setDismissed(true);
+    setBannerVisible(false);
     setShowIOSGuide(false);
-    setDeferredPrompt(null);
+    setShowManualGuide(false);
   }, []);
 
   return {
     canInstall,
     showPrompt,
     showIOSGuide,
+    showManualGuide,
     isInstalled,
-    isMobileBrowser: isMobileBrowser(),
+    isInstalling,
     install,
     dismiss,
   };
