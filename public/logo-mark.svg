@@ -1,6 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="SpiritsVerse">
-  <rect width="512" height="512" rx="96" fill="#0a0a0a"/>
-  <g transform="translate(256 256) scale(10) translate(-12 -12)" fill="none" stroke="#225F41" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="SpiritsVerse">
+  <g fill="none" stroke="#225F41" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <!-- Left glass -->
     <path d="M4 8 L12 3.5"/>
     <path d="M4 8 Q3 11 5.5 13"/>

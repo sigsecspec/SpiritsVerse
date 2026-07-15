@@ -15,14 +15,14 @@ export default defineConfig(() => {
         VitePWA({
           registerType: 'autoUpdate',
           injectRegister: false,
-          includeAssets: ['icon.svg', 'favicon-32x32.png', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
+          includeAssets: ['logo.svg', 'logo-mark.svg', 'icon.svg', 'favicon.ico', 'favicon-16.png', 'favicon-32.png', 'favicon-48.png', 'apple-touch-icon.png', 'pwa-192.png', 'pwa-512.png', 'pwa-192x192.png', 'pwa-512x512.png'],
           manifest: {
             id: '/',
             name: 'SpiritsVerse',
             short_name: 'SpiritsVerse',
             description: 'The social network for drink lovers. Explore cocktails, connect with drinking buddies, and share your digital bar.',
-            theme_color: '#050505',
-            background_color: '#050505',
+            theme_color: '#0a0a0a',
+            background_color: '#0a0a0a',
             display: 'standalone',
             display_override: ['standalone', 'browser'],
             orientation: 'portrait',
